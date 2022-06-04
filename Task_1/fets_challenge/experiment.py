@@ -158,6 +158,7 @@ def gen_collaborator_time_stats(collaborator_names, seed=0xFEEDFACE):
 
 def compute_times_per_collaborator(collaborator_names,
                                    training_collaborators,
+                                   batches_per_round,
                                    epochs_per_round,
                                    collaborator_data,
                                    collaborator_time_stats,
@@ -195,7 +196,10 @@ def compute_times_per_collaborator(collaborator_names,
             training_time_per = max(1, training_time_per)
 
             # training data size depends on the hparams
-            data_size *= epochs_per_round
+            if batches_per_round > 0:
+                data_size = batches_per_round
+            else:
+                data_size *= epochs_per_round
             time += data_size * training_time_per
             
             # if training, we also validate the locally updated model 
@@ -227,7 +231,7 @@ def run_challenge_experiment(aggregation_function,
                              brats_training_data_parent_dir,
                              db_store_rounds=5,
                              rounds_to_train=5,
-                             device='cpu',
+                             device= torch.device("cuda:3") if torch.cuda.is_available() else 'cpu',
                              save_checkpoints=True,
                              restore_from_checkpoint_folder=None, 
                              include_validation_with_hausdorff=True,
@@ -401,15 +405,21 @@ def run_challenge_experiment(aggregation_function,
                                                       collaborators_chosen_each_round,
                                                       collaborator_times_per_round)
 
-        learning_rate, epochs_per_round = hparams
+        learning_rate, epochs_per_round, batches_per_round = hparams
 
-        if (epochs_per_round is None):
-            logger.warning('Hyper-parameter function warning: function returned None for "epochs_per_round". Setting "epochs_per_round" to 1')
-            epochs_per_round = 1
+        if (epochs_per_round is None) == (batches_per_round is None):
+            logger.error('Hyper-parameter function error: function must return "None" for either "epochs_per_round" or "batches_per_round" but not both.')
+            return
         
         hparam_message = "\n\tlearning rate: {}".format(learning_rate)
 
-        hparam_message += "\n\tepochs_per_round: {}".format(epochs_per_round)
+        # None gets mapped to -1 in the tensor_db
+        if epochs_per_round is None:
+            epochs_per_round = -1
+            hparam_message += "\n\tbatches_per_round: {}".format(batches_per_round)
+        elif batches_per_round is None:
+            batches_per_round = -1
+            hparam_message += "\n\tepochs_per_round: {}".format(epochs_per_round)
 
         logger.info("Hyper-parameters for round {}:{}".format(round_num, hparam_message))
 
@@ -427,11 +437,18 @@ def run_challenge_experiment(aggregation_function,
                         report=False,
                         tags=('hparam', 'model'))
         hparam_dict[tk] = np.array(epochs_per_round)
+        tk = TensorKey(tensor_name='batches_per_round',
+                        origin=aggregator.uuid,
+                        round_number=round_num,
+                        report=False,
+                        tags=('hparam', 'model'))
+        hparam_dict[tk] = np.array(batches_per_round)
         aggregator.tensor_db.cache_tensor(hparam_dict)
 
         # pre-compute the times for each collaborator
         times_per_collaborator = compute_times_per_collaborator(collaborator_names,
                                                                 training_collaborators,
+                                                                batches_per_round,
                                                                 epochs_per_round,
                                                                 collaborator_data_loaders,
                                                                 collaborator_time_stats,
@@ -492,6 +509,13 @@ def run_challenge_experiment(aggregation_function,
         ## RUN VALIDATION ON INTERMEDIATE CONSENSUS MODEL
         # set the task_runner data loader
         # task_runner.data_loader = collaborator_data_loaders[col]
+        ### DELETE THIS LINE ###
+        # print(f'Collaborator {col} training data count = {task_runner.data_loader.get_train_data_size()}')
+
+        # run the collaborator
+        #collaborators[col].run_simulation()
+
+
 
         ## CONVERGENCE METRIC COMPUTATION
         # update the auc score
