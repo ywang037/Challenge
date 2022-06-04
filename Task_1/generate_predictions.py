@@ -14,7 +14,7 @@ import os
 from sys import path
 from fets_challenge.gandlf_csv_adapter import construct_fedsim_csv, extract_csv_partitions
 
-device='cpu'
+device='cuda'
 
 # infer participant home folder
 home = str(Path.home())
@@ -23,7 +23,7 @@ home = str(Path.home())
 # the data you want to run inference over
 checkpoint_folder='experiment_1'
 #data_path = </PATH/TO/CHALLENGE_VALIDATION_DATA>
-data_path = '/raid/datasets/FeTS22/MICCAI_FeTS2022_ValidationData'
+data_path = '/home/wang_yuan/fets2022/Data/ValidationData'
 
 # you can keep these the same if you wish
 best_model_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'best_model.pkl')
