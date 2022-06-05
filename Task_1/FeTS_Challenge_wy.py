@@ -12,6 +12,7 @@
 # - Ilya Trushkin (Intel)
 
 
+from math import floor
 import os
 import numpy as np
 
@@ -120,16 +121,26 @@ def wy_train_col_selector(collaborators,
     metric_name = 'acc'
     tags = ('metric','validate_local')
     val_loss = {}
-    # selected_weights = []
+    all_losses_previous_round = []
     for record in db_iterator:
-        for col in collaborators:
+        for col in collaborators_chosen_each_round[fl_round-1]:
             tags = set(tags + [col])
             if (
                 tags <= set(record['tags']) 
-                and record['round'] == fl_round
+                and record['round'] == fl_round-1
                 and record['tensor_name'] == metric_name
             ):
                 val_loss[col]=record['nparray']
+                all_losses_previous_round.append(record['nparray'])
+    
+    # get the index of the sorted loss values
+    sorted_idx = np.argsort(all_losses_previous_round,axis=0)
+    
+    # choose 1/3 of the total collaborators from all collaborators participated in the previous round
+    num_col_to_select_from_prevous_round = int(np.round(len(collaborators)/3))
+
+    for i in range(num_col_to_select_from_prevous_round):
+        training_collaborators.append(sorted_idx[i])
     return training_collaborators
 
 
@@ -170,13 +181,21 @@ def constant_hyper_parameters(collaborators,
 # # Custom Aggregation Functions - WY's trials
 ##########################################################
 def find_previous_tensor_agg(tensor_db, tensor_name, fl_round):
+    previous_tensor_value = None
     for _, record in tensor_db.iterrows():
-        if (record['round'] == fl_round - 1
-            and record["tensor_name"] == tensor_name
-            and record["tags"] == ("aggregated",)): 
-            tensor_value = record['nparray']
+        if (
+            # record['round'] == (fl_round - 1)
+            record['round'] == fl_round
+            and record['tensor_name'] == tensor_name
+            and 'aggregated' in record['tags']
+            and 'delta' not in record['tags']
+            ):
+            previous_tensor_value = record['nparray']
             break
-    return tensor_value
+
+    # previous_tensor_value = tensor_db.search(tensor_name=tensor_name, fl_round=fl_round, tags=('model',), origin='aggregator')
+    # previous_tensor_value = previous_tensor_value.nparray.iloc[0]
+    return previous_tensor_value
 
 def get_dist_score(local_tensors, tensor_db, tensor_name, fl_round):
     """ compute the scores for each local model updates which is inverse propotional to the euclidean distance from the local models to the centroid
@@ -186,6 +205,8 @@ def get_dist_score(local_tensors, tensor_db, tensor_name, fl_round):
     previous_tensor_agg = find_previous_tensor_agg(tensor_db, tensor_name, fl_round) # using the aggregated model of the previous round as the reference point
     # privious_tensor_agg = tensor_db.retrieve(tensor_name=tensor_name, tags=('tensor_agg_round_0',)) # [optional] using the aggregated model of first round as the reference point
     
+    assert previous_tensor_agg is not None, 'ERROR: previous aggregated tensor is None'
+
     # compute the model updates of each col
     deltas = [t.tensor - previous_tensor_agg for t in local_tensors]
 
@@ -212,6 +233,8 @@ def get_dist_score2(local_tensors, tensor_db, tensor_name, fl_round):
     previous_tensor_agg = find_previous_tensor_agg(tensor_db, tensor_name, fl_round) # using the aggregated model of the previous round as the reference point
     # privious_tensor_agg = tensor_db.retrieve(tensor_name=tensor_name, tags=('tensor_agg_round_0',)) # [optional] using the aggregated model of first round as the reference point
     
+    assert previous_tensor_agg is not None, 'ERROR: previous aggregated tensor is None'
+
     # compute the model updates of each col
     deltas={}
     dist_scores={}
@@ -245,7 +268,7 @@ def get_val_loss(local_tensors,tensor_db,fl_round):
     # selected_weights = []
     for _, record in tensor_db.iterrows():
         for local_tensor in local_tensors:
-            tags = set(tags + [local_tensor.col_name])
+            tags = set(tags + tuple([local_tensor.col_name]))
             if (
                 tags <= set(record['tags']) 
                 and record['round'] == fl_round
@@ -268,7 +291,7 @@ def wy_agg_func_dist(local_tensors,
         # in the first round, just do normal fedavg
         tensor_values = [t.tensor for t in local_tensors]
         weight_values = [t.weight for t in local_tensors]               
-        new_tensor_agg =  np.average(tensor_values, weights=weight_values, axis=0)   
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)   
         
         # besides, also save the aggregated model for the computing of model update direction in the later roudns [optional]
         tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
@@ -300,7 +323,7 @@ def wy_agg_func_dist(local_tensors,
 
         # compute the aggregated model using the distance score directly
         tensor_values = [t.tensor for t in local_tensors]
-        new_tensor_agg =  np.average(tensor_values, weights=weight_values, axis=0)  
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)  
     
     return new_tensor_agg
 
@@ -327,8 +350,9 @@ def wy_agg_func_dist2(local_tensors,
         dist_scores = get_dist_score2(local_tensors, tensor_db, tensor_name, fl_round)
         
         # compute the aggregated model
-        weighted_tensors=[t*dist_scores[t.col_name] for t in local_tensors]
-        new_tensor_agg =  np.average(weighted_tensors, axis=0)  
+        tensor_values = [t.tensor for t in local_tensors]
+        weight_values = [dist_scores[t.col_name] for t in local_tensors]
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)  
     
     return new_tensor_agg
 
@@ -345,7 +369,7 @@ def wy_agg_func_val(local_tensors,
         # in the first round, just do normal fedavg
         tensor_values = [t.tensor for t in local_tensors]
         weight_values = [t.weight for t in local_tensors]               
-        new_tensor_agg =  np.average(tensor_values, weights=weight_values, axis=0)   
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)   
         
         # besides, also save the aggregated model for the computing of model update direction in the later roudns [optional]
         tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
@@ -357,7 +381,7 @@ def wy_agg_func_val(local_tensors,
 
         # compute the aggregated model using the distance score directly
         tensor_values = [t.tensor for t in local_tensors]
-        new_tensor_agg =  np.average(tensor_values, weights=weight_values, axis=0)  
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)  
     
     return new_tensor_agg
 
@@ -375,7 +399,7 @@ def wy_agg_func_hybrid(local_tensors,
         # in the first round, just do normal fedavg
         tensor_values = [t.tensor for t in local_tensors]
         weight_values = [t.weight for t in local_tensors]               
-        new_tensor_agg =  np.average(tensor_values, weights=weight_values, axis=0)   
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)   
         
         # besides, also save the aggregated model for the computing of model update direction in the later roudns [optional]
         tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
@@ -394,7 +418,7 @@ def wy_agg_func_hybrid(local_tensors,
 
         # compute the aggregated model using the distance score directly
         tensor_values = [t.tensor for t in local_tensors]
-        new_tensor_agg =  np.average(tensor_values, weights=weight_values, axis=0)  
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)  
     
     return new_tensor_agg
 
@@ -404,30 +428,72 @@ def wy_agg_func_adv(local_tensors,
                     fl_round,
                     collaborators_chosen_each_round,
                     collaborator_times_per_round):
-    """ advanced aggregation, which is a further weighted average of fedavg and customized aggregation function
+    """ advanced aggregation, the weight values are the defualt weights multiply those of customized aggregation function
     """
-    
-    # first compute the aggregated model by fedavg
-    tensor_values = [t.tensor for t in local_tensors]
-    weight_values = [t.weight for t in local_tensors]               
-    new_tensor_agg_fedavg =  np.average(tensor_values, weights=weight_values, axis=0)  
+    if fl_round == 0:
+        # in the first round, just do normal fedavg
+        tensor_values = [t.tensor for t in local_tensors]
+        weight_values = [t.weight for t in local_tensors]               
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)   
+        
+        # besides, also save the aggregated model for the computing of model update direction in the later roudns [optional]
+        tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
+    else:
+        # get the defualt weights values (shall be like weighted by number of training samples)
+        weight_values_default = np.array([t.weight for t in local_tensors], dtype=np.float64)               
 
-    # then compute the aggregated model by using our customized aggregation function
-    # the aggregation function to be used here can be chosen from wy_agg_func_dist, wy_agg_func_val, wy_agg_func_hybrid
-    new_tensor_agg_ours = wy_agg_func_dist(local_tensors,
-                                            tensor_db,
-                                            tensor_name,
-                                            fl_round,
-                                            collaborators_chosen_each_round,
-                                            collaborator_times_per_round)
+        # compute the customized aggregation weights, i.e., distance scores
+        dist_scores = get_dist_score(local_tensors, tensor_db, tensor_name, fl_round)  
 
-    # then find the final output as the weighted average of the above two aggregated models
-    alpha = np.float64(0.5)
-    new_tensor_agg = alpha*new_tensor_agg_fedavg + (1-alpha)*new_tensor_agg_ours
+        # compute the final scores
+        final_scores = weight_values_default * dist_scores
+
+        # normalize the score into [0 ,1]
+        weight_values = final_scores/final_scores.sum()
+        
+        # compute the aggregated model
+        tensor_values = [t.tensor for t in local_tensors]
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)
 
     return new_tensor_agg
 
+def wy_agg_func_adv2(local_tensors,
+                    tensor_db,
+                    tensor_name,
+                    fl_round,
+                    collaborators_chosen_each_round,
+                    collaborator_times_per_round):
+    """ advanced aggregation, which is a further weighted average of fedavg and customized aggregation function
+    """
+    if fl_round == 0:
+        # in the first round, just do normal fedavg
+        tensor_values = [t.tensor for t in local_tensors]
+        weight_values = [t.weight for t in local_tensors]               
+        new_tensor_agg =  np.average(tensor_values, weights=weight_values, axis=0)   
+        
+        # besides, also save the aggregated model for the computing of model update direction in the later roudns [optional]
+        tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
+    else:
+        # get the tensors to be aggregated
+        tensor_values = [t.tensor for t in local_tensors]
+        
+        # get the defualt weights values (shall be like weighted by number of training samples)
+        weight_values_default = np.array([t.weight for t in local_tensors], dtype=np.float64)               
 
+        # compute the customized aggregation weights, i.e., distance scores
+        dist_scores = get_dist_score(local_tensors, tensor_db, tensor_name, fl_round)  
+
+        # compute the final scores
+        alpha = np.float64(0.5)
+        final_scores = alpha*weight_values_default + (1-alpha)*dist_scores
+
+        # normalize the score into [0 ,1]
+        weight_values = final_scores/final_scores.sum()
+
+        # then find the final output as the weighted average of the above two aggregated models       
+        new_tensor_agg=  np.average(tensor_values, weights=weight_values, axis=0)
+
+    return new_tensor_agg
 
 
 # def get_loss_score(local_tensors, tensor_db, fl_round):
@@ -675,6 +741,7 @@ aggregation_function = wy_agg_func_dist2
 # aggregation_function = wy_agg_func_val
 # aggregation_function = wy_agg_func_hybrid
 # aggregation_function = wy_agg_func_adv
+# aggregation_function = wy_agg_func_adv2
 choose_training_collaborators = all_collaborators_train
 training_hyper_parameters_for_round = constant_hyper_parameters
 
