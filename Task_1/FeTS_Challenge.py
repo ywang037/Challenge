@@ -417,7 +417,8 @@ def clipped_aggregation(local_tensors,
 
     previous_tensor_value = previous_tensor_value.nparray.iloc[0]
 
-    # compute the deltas for each collaborator NOTE you may use this deltas for your implementation
+    # compute the deltas for each collaborator 
+    # NOTE you may re-use this line for your purpose
     deltas = [t.tensor - previous_tensor_value for t in local_tensors]
 
     # get the target percentile using the absolute values of the deltas
@@ -495,7 +496,7 @@ def FedAvgM_Selection(local_tensors,
                 )
             return new_tensor_weight        
         else:
-            if tensor_name.endswith("weight") or tensor_name.endswith("bias"):
+            if tensor_name.endswith("weight") or tensor_name.endswith("bias"): # NOTE why would like to have this?
                 # Calculate aggregator's last value
                 previous_tensor_value = None
                 for _, record in tensor_db.iterrows():
@@ -524,7 +525,7 @@ def FedAvgM_Selection(local_tensors,
                     return new_tensor_weight
                 else:
                     # compute the average delta for that layer
-                    deltas = [previous_tensor_value - t.tensor for t in local_tensors]
+                    deltas = [previous_tensor_value - t.tensor for t in local_tensors] # NOTE you may wish to re-use this line
                     weight_values = [t.weight for t in local_tensors]
                     average_deltas = np.average(deltas, weights=weight_values, axis=0) 
 
