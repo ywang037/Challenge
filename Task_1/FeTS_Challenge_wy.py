@@ -385,6 +385,7 @@ def wy_agg_func_val(local_tensors,
     
     return new_tensor_agg
 
+# as the wy_agg_func_val is not working, this function is pending revision
 def wy_agg_func_hybrid(local_tensors,
                         tensor_db,
                         tensor_name,
