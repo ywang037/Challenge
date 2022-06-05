@@ -145,8 +145,8 @@ def wy_train_col_selector(collaborators,
     for i in range(num_col_to_select_from_prevous_round):
         training_collaborators.append(sorted_idx[i])
 
-    # choose 1 from the rest randomly
-    num_to_select_from_the_rest = 1
+    # randomly choose some other collaborators from the rest 
+    num_to_select_from_the_rest = 1 # can be manually set
     rng = np.random.default_rng(35)
     the_rest = collaborators - training_collaborators
     selected_from_the_other = rng.choice(the_rest, num_to_select_from_the_rest, replace=False).tolist()
