@@ -92,30 +92,50 @@ def one_collaborator_on_odd_rounds(collaborators,
         training_collaborators = collaborators
     return training_collaborators
 
+##########################################################
+# # Custom selection functions - WY's trials
+##########################################################
+# # TODO not finished yet
+# def wy_train_col_selector(collaborators,
+#                         db_iterator,
+#                         fl_round,
+#                         collaborators_chosen_each_round,
+#                         collaborator_times_per_round):
+#     """ Chooses which collaborators will train for a given round:
+#         select M out of N from the collaborators of the previous round, as per certain scores, e.g., dist_scores, val_scores, or hybrid_scores
+#         then randomly select the rest N-M from the ones that has not participated in the previos round.
+
+    
+#     Args:
+#         collaborators: list of strings of collaborator names
+#         db_iterator: iterator over history of all tensors.
+#             Columns: ['tensor_name', 'round', 'tags', 'nparray']
+#         fl_round: round number
+#         collaborators_chosen_each_round: a dictionary of {round: list of collaborators}. Each list indicates which collaborators trained in that given round.
+#         collaborator_times_per_round: a dictionary of {round: {collaborator: total_time_taken_in_round}}.  
+#     """
+#     # logger.info("one_collaborator_on_odd_rounds called!")
+#     training_collaborators = []
+    
+#     metric_name = 'acc'
+#     tags = ('metric','validate_local')
+#     val_loss = {}
+#     # selected_weights = []
+#     for record in db_iterator:
+#         for col in collaborators:
+#             tags = set(tags + [col])
+#             if (
+#                 tags <= set(record['tags']) 
+#                 and record['round'] == fl_round
+#                 and record['tensor_name'] == metric_name
+#             ):
+#                 val_loss[col]=record['nparray']
+#     return training_collaborators
+
+
+
 
 # # Custom hyperparameters for training
-
-# You can customize the hyper-parameters for the training collaborators at each round. 
-# At the start of the round, the experiment loop will invoke your function and set the hyper-parameters for that round based on what you return.
-# 
-# The training hyper-parameters for a round are:
-# - **`learning_rate`**: the learning rate value set for the Adam optimizer
-# - **`batches_per_round`**: a flat number of batches each training collaborator will train. Must be an integer or None
-# - **`epochs_per_round`**: the number of epochs each training collaborator will train. Must be a float or None. Partial epochs are allowed, such as 0.5 epochs.
-# 
-# Note that exactly one of **`epochs_per_round`** and **`batches_per_round`** must be `"None"`. 
-# You will get an error message and the experiment will terminate if this is not the case to remind you of this requirement.
-# 
-# Your function will receive the typical aggregator state/history information that it can use to make its determination. 
-# The function must return a tuple of (`learning_rate`, `epochs_per_round`, `batches_per_round`). For example, if you return:
-# 
-# `(1e-4, 2.5, None)`
-# 
-# then all collaborators selected based on the [collaborator training selection criteria](#Custom-Collaborator-Training-Selection) 
-# will train for `2.5` epochs with a learning rate of `1e-4`.
-# 
-# Different hyperparameters can be specified for collaborators for different rounds but they remain the same for all the collaborators 
-# that are chosen for that particular round. In simpler words, collaborators can not have different hyperparameters for the same round.
 
 # This simple example uses constant hyper-parameters through the experiment
 def constant_hyper_parameters(collaborators,
@@ -146,8 +166,9 @@ def constant_hyper_parameters(collaborators,
 
 
 
-
+##########################################################
 # # Custom Aggregation Functions - WY's trials
+##########################################################
 def find_previous_tensor_agg(tensor_db, tensor_name, fl_round):
     for _, record in tensor_db.iterrows():
         if (record['round'] == fl_round - 1
@@ -304,10 +325,10 @@ def wy_agg_func_hybrid(local_tensors,
         val_scores = get_val_loss(local_tensors,tensor_db,fl_round)
         
         # get the final scores
-        scores = dist_scores * val_scores
+        hybrid_scores = dist_scores * val_scores
         
         # normalize the score into [0 ,1]
-        weight_values = scores/scores.sum()
+        weight_values = hybrid_scores/hybrid_scores.sum()
 
         # compute the aggregated model using the distance score directly
         tensor_values = [t.tensor for t in local_tensors]
