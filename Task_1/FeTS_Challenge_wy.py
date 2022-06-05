@@ -670,7 +670,11 @@ def FedAvgM_Selection(local_tensors,
 # change any of these you wish to your custom functions. You may leave defaults if you wish.
 # aggregation_function = weighted_average_aggregation
 # aggregation_function = FedAvgM_Selection
-aggregation_function = wy_agg_func_dist
+aggregation_function = wy_agg_func_dist2
+# aggregation_function = wy_agg_func_dist
+# aggregation_function = wy_agg_func_val
+# aggregation_function = wy_agg_func_hybrid
+# aggregation_function = wy_agg_func_adv
 choose_training_collaborators = all_collaborators_train
 training_hyper_parameters_for_round = constant_hyper_parameters
 
