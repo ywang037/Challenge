@@ -33,6 +33,8 @@ import time
 # The following import allows you to use the same logger used by the experiment framework. This lets you include logging in your functions.
 
 from fets_challenge.experiment import logger
+from pyparsing import col
+from sklearn.metrics import log_loss
 
 # # Custom Collaborator Training Selection
 # By default, all collaborators will be selected for training each round, 
@@ -104,7 +106,7 @@ def wy_train_col_selector(collaborators,
                         collaborator_times_per_round):
     """ Chooses which collaborators will train for a given round:
         select M out of N from the collaborators of the previous round, as per certain scores, e.g., dist_scores, val_scores, or hybrid_scores
-        then randomly select the rest N-M from the ones that has not participated in the previos round.
+        then randomly select N-M from the rest.
 
     
     Args:
@@ -118,10 +120,11 @@ def wy_train_col_selector(collaborators,
     # logger.info("one_collaborator_on_odd_rounds called!")
     training_collaborators = []
     
-    metric_name = 'acc'
+    # metric_name = 'acc'
+    metric_name = 'loss'
     tags = ('metric','validate_local')
     val_loss = {}
-    all_losses_previous_round = []
+    # all_losses_previous_round = []
     for record in db_iterator:
         for col in collaborators_chosen_each_round[fl_round-1]:
             tags = set(tags + [col])
@@ -131,16 +134,24 @@ def wy_train_col_selector(collaborators,
                 and record['tensor_name'] == metric_name
             ):
                 val_loss[col]=record['nparray']
-                all_losses_previous_round.append(record['nparray'])
+                # all_losses_previous_round.append(record['nparray'])
     
     # get the index of the sorted loss values
+    all_losses_previous_round = [val_loss[col] for col in collaborators_chosen_each_round(fl_round-1)]
     sorted_idx = np.argsort(all_losses_previous_round,axis=0)
     
     # choose 1/3 of the total collaborators from all collaborators participated in the previous round
     num_col_to_select_from_prevous_round = int(np.round(len(collaborators)/3))
-
     for i in range(num_col_to_select_from_prevous_round):
         training_collaborators.append(sorted_idx[i])
+
+    # choose 1 from the rest randomly
+    num_to_select_from_the_rest = 1
+    rng = np.random.default_rng(35)
+    the_rest = collaborators - training_collaborators
+    selected_from_the_other = rng.choice(the_rest, num_to_select_from_the_rest, replace=False).tolist()
+    training_collaborators +=selected_from_the_other
+
     return training_collaborators
 
 
@@ -192,7 +203,8 @@ def find_previous_tensor_agg(tensor_db, tensor_name, fl_round):
             ):
             previous_tensor_value = record['nparray']
             break
-
+    
+    # # another way of getting the aggregated model of the previous round
     # previous_tensor_value = tensor_db.search(tensor_name=tensor_name, fl_round=fl_round, tags=('model',), origin='aggregator')
     # previous_tensor_value = previous_tensor_value.nparray.iloc[0]
     return previous_tensor_value
@@ -212,9 +224,9 @@ def get_dist_score(local_tensors, tensor_db, tensor_name, fl_round):
 
     # compute the centroid of the model updates as the mean and/or median
     deltas_cent = np.mean(deltas, axis=0)
-    # deltas_center = np.median(deltas, axis=0)
+    # deltas_cent = np.median(deltas, axis=0)
     
-    # compute the euclidean distance to the center of model udpates 
+    # compute the euclidean distance to the centroid of model udpates 
     deltas_norm = [np.linalg.norm(d-deltas_cent) for d in deltas]
     deltas_norm = np.array(deltas_norm, dtype=np.float64)
 
@@ -240,13 +252,12 @@ def get_dist_score2(local_tensors, tensor_db, tensor_name, fl_round):
     dist_scores={}
     for t in local_tensors:
         deltas[t.col_name] = t.tensor - previous_tensor_agg
-    
 
     # compute the centroid of the model updates as the mean and/or median
     deltas_cent = np.mean([tensor for _, tensor in deltas.items()], axis=0)
-    # deltas_center = np.median(deltas, axis=0)
+    # deltas_cent = np.median(deltas, axis=0)
     
-    # compute the euclidean distance to the center of model udpates 
+    # compute the euclidean distance to the centroid of model udpates 
     # map the euclidean distance with exponential function to make the closeness score inverse propotional to the distance
     sum=0
     for col, tensor in deltas.items():
@@ -261,21 +272,39 @@ def get_dist_score2(local_tensors, tensor_db, tensor_name, fl_round):
     return dist_scores
 
 # get the validation loss of every collaborators in a specific round
-def get_val_loss(local_tensors,tensor_db,fl_round):
-    metric_name = 'acc'
+def get_val_loss(local_tensors,tensor_db,fl_round,collaborators_chosen_each_round):
+    # metric_name = 'acc'
+    metric_name = 'loss'
     tags = ('metric','validate_local')
-    val_loss = []
-    # selected_weights = []
-    for _, record in tensor_db.iterrows():
-        for local_tensor in local_tensors:
-            tags = set(tags + tuple([local_tensor.col_name]))
+    val_loss = {}
+    for record in tensor_db.iterrows():
+        for t in local_tensors:
+            tags = set(tags + tuple([t.col_name]))
             if (
                 tags <= set(record['tags']) 
-                and record['round'] == fl_round
+                and record['round'] == fl_round-1
                 and record['tensor_name'] == metric_name
             ):
-                val_loss.append(record['nparray'])
-    return np.array(val_loss,dtype=np.float64)
+                val_loss[col]=record['nparray']
+    
+    # normalize the score to [0, 1]
+    sum=0
+    for _, loss in val_loss.items():
+        sum += loss
+    for col, loss in val_loss.items():
+        val_loss[col] = loss/sum   
+    return val_loss
+    # val_loss = []
+    # for _, record in tensor_db.iterrows():
+    #     for local_tensor in local_tensors:
+    #         tags = set(tags + tuple([local_tensor.col_name]))
+    #         if (
+    #             tags <= set(record['tags']) 
+    #             and record['round'] == fl_round
+    #             and record['tensor_name'] == metric_name
+    #         ):
+    #             val_loss.append(record['nparray'])
+    # return np.array(val_loss,dtype=np.float64)
 
 def wy_agg_func_dist(local_tensors,
                     tensor_db,
@@ -356,12 +385,11 @@ def wy_agg_func_val(local_tensors,
         tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
     else:        
         # get the scores w.r.t. local validation loss
-        val_scores = get_val_loss(local_tensors,tensor_db,fl_round)
-        # normalize the score into [0 ,1]
-        weight_values = val_scores/val_scores.sum()
-
-        # compute the aggregated model using the distance score directly
+        val_scores = get_val_loss(local_tensors,tensor_db,fl_round,collaborators_chosen_each_round)
+        
+        # compute the aggregated model
         tensor_values = [t.tensor for t in local_tensors]
+        weight_values = [val_scores[t.col_name] for t in local_tensors]
         new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)  
     
     return new_tensor_agg
@@ -390,8 +418,9 @@ def wy_agg_func_hybrid(local_tensors,
         dist_scores = get_dist_score(local_tensors, tensor_db, tensor_name, fl_round)
         
         # get the scores w.r.t. local validation loss
-        val_scores = get_val_loss(local_tensors,tensor_db,fl_round)
-        
+        val_loss = get_val_loss(local_tensors,tensor_db,fl_round)
+        val_scores = np.array([val_loss[t.col_name] for t in local_tensors],dtype=np.float64)
+
         # get the final scores
         hybrid_scores = dist_scores * val_scores
         
