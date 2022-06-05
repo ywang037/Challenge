@@ -296,25 +296,6 @@ def wy_agg_func_dist(local_tensors,
         # besides, also save the aggregated model for the computing of model update direction in the later roudns [optional]
         tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
     else:
-        # # get the aggregated model parameters of the previous round
-        # previous_tensor_agg = find_previous_tensor_agg(tensor_db, tensor_name, fl_round) # using the aggregated model of the previous round as the reference point
-        # # privious_tensor_agg = tensor_db.retrieve(tensor_name=tensor_name, tags=('tensor_agg_round_0',)) # [optional] using the aggregated model of first round as the reference point
-        
-        # # compute the model updates of each col
-        # deltas = [t.tensor - previous_tensor_agg for t in local_tensors]
-
-        # # compute the centroid of the model updates as the mean and/or median
-        # deltas_cent = np.mean(deltas, axis=0)
-        # # deltas_center = np.median(deltas, axis=0)
-        
-        # # compute the euclidean distance to the center of model udpates 
-        # deltas_norm = [np.linalg.norm(d-deltas_cent) for d in deltas]
-        # deltas_norm = np.array(deltas_norm, dtype=np.float64)
-
-        # # map the euclidean distance with exponential function to make the closeness score inverse propotional to the distance
-        # gamma = np.float64(1e-2)
-        # dist_scores = np.exp(-gamma*deltas_norm)
-        
         # get the scores w.r.t. to closseness/distance
         dist_scores = get_dist_score(local_tensors, tensor_db, tensor_name, fl_round)
 
