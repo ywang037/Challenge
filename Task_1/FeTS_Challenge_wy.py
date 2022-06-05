@@ -95,42 +95,42 @@ def one_collaborator_on_odd_rounds(collaborators,
 ##########################################################
 # # Custom selection functions - WY's trials
 ##########################################################
-# # TODO not finished yet
-# def wy_train_col_selector(collaborators,
-#                         db_iterator,
-#                         fl_round,
-#                         collaborators_chosen_each_round,
-#                         collaborator_times_per_round):
-#     """ Chooses which collaborators will train for a given round:
-#         select M out of N from the collaborators of the previous round, as per certain scores, e.g., dist_scores, val_scores, or hybrid_scores
-#         then randomly select the rest N-M from the ones that has not participated in the previos round.
+# TODO not finished yet
+def wy_train_col_selector(collaborators,
+                        db_iterator,
+                        fl_round,
+                        collaborators_chosen_each_round,
+                        collaborator_times_per_round):
+    """ Chooses which collaborators will train for a given round:
+        select M out of N from the collaborators of the previous round, as per certain scores, e.g., dist_scores, val_scores, or hybrid_scores
+        then randomly select the rest N-M from the ones that has not participated in the previos round.
 
     
-#     Args:
-#         collaborators: list of strings of collaborator names
-#         db_iterator: iterator over history of all tensors.
-#             Columns: ['tensor_name', 'round', 'tags', 'nparray']
-#         fl_round: round number
-#         collaborators_chosen_each_round: a dictionary of {round: list of collaborators}. Each list indicates which collaborators trained in that given round.
-#         collaborator_times_per_round: a dictionary of {round: {collaborator: total_time_taken_in_round}}.  
-#     """
-#     # logger.info("one_collaborator_on_odd_rounds called!")
-#     training_collaborators = []
+    Args:
+        collaborators: list of strings of collaborator names
+        db_iterator: iterator over history of all tensors.
+            Columns: ['tensor_name', 'round', 'tags', 'nparray']
+        fl_round: round number
+        collaborators_chosen_each_round: a dictionary of {round: list of collaborators}. Each list indicates which collaborators trained in that given round.
+        collaborator_times_per_round: a dictionary of {round: {collaborator: total_time_taken_in_round}}.  
+    """
+    # logger.info("one_collaborator_on_odd_rounds called!")
+    training_collaborators = []
     
-#     metric_name = 'acc'
-#     tags = ('metric','validate_local')
-#     val_loss = {}
-#     # selected_weights = []
-#     for record in db_iterator:
-#         for col in collaborators:
-#             tags = set(tags + [col])
-#             if (
-#                 tags <= set(record['tags']) 
-#                 and record['round'] == fl_round
-#                 and record['tensor_name'] == metric_name
-#             ):
-#                 val_loss[col]=record['nparray']
-#     return training_collaborators
+    metric_name = 'acc'
+    tags = ('metric','validate_local')
+    val_loss = {}
+    # selected_weights = []
+    for record in db_iterator:
+        for col in collaborators:
+            tags = set(tags + [col])
+            if (
+                tags <= set(record['tags']) 
+                and record['round'] == fl_round
+                and record['tensor_name'] == metric_name
+            ):
+                val_loss[col]=record['nparray']
+    return training_collaborators
 
 
 
@@ -203,6 +203,40 @@ def get_dist_score(local_tensors, tensor_db, tensor_name, fl_round):
     
     return dist_scores
 
+def get_dist_score2(local_tensors, tensor_db, tensor_name, fl_round):
+    """ compute the scores for each local model updates which is inverse propotional to the euclidean distance from the local models to the centroid
+    """
+    gamma = np.float64(1e-2)
+
+    # get the aggregated model parameters of the previous round
+    previous_tensor_agg = find_previous_tensor_agg(tensor_db, tensor_name, fl_round) # using the aggregated model of the previous round as the reference point
+    # privious_tensor_agg = tensor_db.retrieve(tensor_name=tensor_name, tags=('tensor_agg_round_0',)) # [optional] using the aggregated model of first round as the reference point
+    
+    # compute the model updates of each col
+    deltas={}
+    dist_scores={}
+    for t in local_tensors:
+        deltas[t.col_name] = t.tensor - previous_tensor_agg
+    
+
+    # compute the centroid of the model updates as the mean and/or median
+    deltas_cent = np.mean([tensor for _, tensor in deltas.items()], axis=0)
+    # deltas_center = np.median(deltas, axis=0)
+    
+    # compute the euclidean distance to the center of model udpates 
+    # map the euclidean distance with exponential function to make the closeness score inverse propotional to the distance
+    sum=0
+    for col, tensor in deltas.items():
+        score = np.exp(-gamma*np.linalg.norm(tensor-deltas_cent)) 
+        dist_scores[col] = score
+        sum += score
+    
+    # normalize the score to [0 ,1]
+    for col, score in dist_scores.items():
+        dist_scores[col] = dist_scores[col]/sum
+
+    return dist_scores
+
 # get the validation loss of every collaborators in a specific round
 def get_val_loss(local_tensors,tensor_db,fl_round):
     metric_name = 'acc'
@@ -267,6 +301,34 @@ def wy_agg_func_dist(local_tensors,
         # compute the aggregated model using the distance score directly
         tensor_values = [t.tensor for t in local_tensors]
         new_tensor_agg =  np.average(tensor_values, weights=weight_values, axis=0)  
+    
+    return new_tensor_agg
+
+def wy_agg_func_dist2(local_tensors,
+                        tensor_db,
+                        tensor_name,
+                        fl_round,
+                        collaborators_chosen_each_round,
+                        collaborator_times_per_round):
+    """ this aggregation function finds the aggregated model by weighting local model updates (relative to the previous round) with the normliazed distance 
+        the distance is measured from each local update to the centroid of all local model udpates
+    """
+    
+    if fl_round == 0:
+        # in the first round, just do normal fedavg
+        tensor_values = [t.tensor for t in local_tensors]
+        weight_values = [t.weight for t in local_tensors]               
+        new_tensor_agg =  np.average(tensor_values, weights=weight_values, axis=0)   
+        
+        # besides, also save the aggregated model for the computing of model update direction in the later roudns [optional]
+        tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
+    else:
+        # get the scores w.r.t. to closseness/distance
+        dist_scores = get_dist_score2(local_tensors, tensor_db, tensor_name, fl_round)
+        
+        # compute the aggregated model
+        weighted_tensors=[t*dist_scores[t.col_name] for t in local_tensors]
+        new_tensor_agg =  np.average(weighted_tensors, axis=0)  
     
     return new_tensor_agg
 
@@ -607,7 +669,8 @@ def FedAvgM_Selection(local_tensors,
 
 # change any of these you wish to your custom functions. You may leave defaults if you wish.
 # aggregation_function = weighted_average_aggregation
-aggregation_function = FedAvgM_Selection
+# aggregation_function = FedAvgM_Selection
+aggregation_function = wy_agg_func_dist
 choose_training_collaborators = all_collaborators_train
 training_hyper_parameters_for_round = constant_hyper_parameters
 
