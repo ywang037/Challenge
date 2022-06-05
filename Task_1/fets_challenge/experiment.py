@@ -387,6 +387,7 @@ def run_challenge_experiment(aggregation_function,
 
     for round_num in range(starting_round_num, rounds_to_train):
         # pick collaborators to train for the round
+        # WY: NOTE the input arguments to this function is fixed according the following line
         training_collaborators = choose_training_collaborators(collaborator_names,
                                                                aggregator.tensor_db._iterate(),
                                                                round_num,
