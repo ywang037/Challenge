@@ -141,7 +141,7 @@ def wy_train_col_selector(collaborators,
     sorted_idx = np.argsort(all_losses_previous_round,axis=0)
     
     # choose 1/3 of the total collaborators from all collaborators participated in the previous round
-    num_col_to_select_from_prevous_round = int(np.round(len(collaborators)/3))
+    num_col_to_select_from_prevous_round = int(np.round(len(collaborators)/3)) # can be manually set to an integer for partition_1 or partition 2
     for i in range(num_col_to_select_from_prevous_round):
         training_collaborators.append(sorted_idx[i])
 
