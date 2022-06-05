@@ -282,9 +282,9 @@ def get_val_loss_score(local_tensors,tensor_db,fl_round):
     val_loss = {}
     for record in tensor_db.iterrows():
         for t in local_tensors:
-            tags = set(tags + tuple([t.col_name]))
+            # tags = set(tags + tuple([t.col_name]))
             if (
-                tags <= set(record['tags']) 
+                set(tags + tuple([t.col_name])) <= set(record['tags']) 
                 and record['round'] == fl_round-1
                 and record['tensor_name'] == metric_name
             ):
