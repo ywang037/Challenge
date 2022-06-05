@@ -522,16 +522,6 @@ def wy_agg_func_adv2(local_tensors,
     return new_tensor_agg
 
 
-# def get_loss_score(local_tensors, tensor_db, fl_round):
-#     # get the local validation loss values of each collaborator in this round
-#     loss_scores = get_val_loss(local_tensors, tensor_db, fl_round)
-#     # # normalize the loss values into [0 ,1]
-#     # losses = losses/losses.sum()
-#     return loss_scores
-    
-
-
-
 # the simple example of weighted FedAVG
 def weighted_average_aggregation(local_tensors,
                                  tensor_db,
