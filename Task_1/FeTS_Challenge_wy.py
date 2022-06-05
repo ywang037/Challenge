@@ -486,6 +486,7 @@ def wy_agg_func_adv2(local_tensors,
                     collaborators_chosen_each_round,
                     collaborator_times_per_round):
     """ advanced aggregation, which is a further weighted average of fedavg and customized aggregation function
+        this function share the simimiar spirit of eqn (2) in https://arxiv.org/abs/2111.08649 (the winner of FeTS2021)
     """
     if fl_round == 0:
         # in the first round, just do normal fedavg
