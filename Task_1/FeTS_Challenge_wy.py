@@ -275,7 +275,7 @@ def get_dist_score2(local_tensors, tensor_db, tensor_name, fl_round):
     return dist_scores
 
 # get the validation loss of every collaborators in a specific round
-def get_val_loss_score(local_tensors,tensor_db,fl_round,collaborators_chosen_each_round):
+def get_val_loss_score(local_tensors,tensor_db,fl_round):
     # metric_name = 'acc'
     metric_name = 'loss'
     tags = ('metric','validate_local')
@@ -401,7 +401,7 @@ def wy_agg_func_val(local_tensors,
         tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
     else:        
         # get the scores w.r.t. local validation loss
-        val_loss, _ = get_val_loss_score(local_tensors,tensor_db,fl_round,collaborators_chosen_each_round)
+        val_loss, _ = get_val_loss_score(local_tensors,tensor_db,fl_round)
         
         # compute the aggregated model
         tensor_values = [t.tensor for t in local_tensors]
@@ -462,11 +462,13 @@ def wy_agg_func_adv(local_tensors,
         weight_values_default = np.array([t.weight for t in local_tensors], dtype=np.float64)               
 
         # compute the customized aggregation weights, i.e., scores associated to each local tensor
-        # tese scores can be the output of get_dist_score, or get_val_loss, or get_hybrid_score
-        dist_scores = get_dist_score(local_tensors, tensor_db, tensor_name, fl_round)  
+        # these scores can be the output of get_dist_score, or get_val_loss, or get_hybrid_score
+        first_scores = get_dist_score(local_tensors, tensor_db, tensor_name, fl_round) 
+        # _, first_scores = get_val_loss_score(local_tensors,tensor_db,fl_round)
+        # first_scores = get_hybrid_score(local_tensors, tensor_db, tensor_name, fl_round)
 
         # compute the final scores
-        final_scores = weight_values_default * dist_scores
+        final_scores = weight_values_default * first_scores
 
         # normalize the score into [0 ,1]
         weight_values = final_scores/final_scores.sum()
@@ -500,12 +502,15 @@ def wy_agg_func_adv2(local_tensors,
         # get the defualt weights values (shall be like weighted by number of training samples)
         weight_values_default = np.array([t.weight for t in local_tensors], dtype=np.float64)               
 
-        # compute the customized aggregation weights, i.e., distance scores
-        dist_scores = get_dist_score(local_tensors, tensor_db, tensor_name, fl_round)  
+        # compute the customized aggregation weights, i.e., scores associated to each local tensor
+        # these scores can be the output of get_dist_score, or get_val_loss, or get_hybrid_score
+        first_scores = get_dist_score(local_tensors, tensor_db, tensor_name, fl_round) 
+        # _, first_scores = get_val_loss_score(local_tensors,tensor_db,fl_round)
+        # first_scores = get_hybrid_score(local_tensors, tensor_db, tensor_name, fl_round)
 
         # compute the final scores
         alpha = np.float64(0.5)
-        final_scores = alpha*weight_values_default + (1-alpha)*dist_scores
+        final_scores = alpha*weight_values_default + (1-alpha)*first_scores
 
         # normalize the score into [0 ,1]
         weight_values = final_scores/final_scores.sum()
