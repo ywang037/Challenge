@@ -283,8 +283,9 @@ def get_val_loss_score(local_tensors,tensor_db,fl_round):
     for record in tensor_db.iterrows():
         for t in local_tensors:
             # tags = set(tags + tuple([t.col_name]))
+            some_tuple = record['tags']
             if (
-                set(tags + tuple([t.col_name])) <= set(record['tags']) 
+                set(tags + tuple([t.col_name])) <= set(some_tuple) 
                 and record['round'] == fl_round-1
                 and record['tensor_name'] == metric_name
             ):
@@ -731,6 +732,41 @@ def FedAvgM_Selection(local_tensors,
 
                 return new_tensor_weight
 
+
+def fedNova_simplified(local_tensors,
+             db_iterator,
+             tensor_name,
+             fl_round,
+             collaborators_chosen_each_round,
+             collaborator_times_per_round):
+    
+    aggregator_lr = 1.0
+
+    if fl_round == 0:
+        # Just apply FedAvg
+        
+        tensor_values = [t.tensor for t in local_tensors]
+        weight_values = [t.weight for t in local_tensors]               
+        new_tensor_weight =  np.average(tensor_values, weights=weight_values, axis=0)        
+                       
+        return new_tensor_weight  
+    else:
+        # Calculate aggregator's last value
+        previous_tensor_value = None
+        for record in db_iterator:
+            if (record['round'] == (fl_round) 
+                and record["tensor_name"] == tensor_name
+                and record["tags"] == ("aggregated",)):
+                previous_tensor_value = record['nparray']
+                break
+                
+        deltas = [previous_tensor_value - t.tensor for t in local_tensors]
+#         weight_values = [t.weight for t in local_tensors]
+        grad_nova =  np.average(deltas, axis=0)
+        
+        new_tensor_weight = previous_tensor_value - aggregator_lr *grad_nova
+        
+        return new_tensor_weight
 
 # # Running the Experiment
 # 
