@@ -734,11 +734,11 @@ def FedAvgM_Selection(local_tensors,
 
 
 def fedNova_simplified(local_tensors,
-             db_iterator,
-             tensor_name,
-             fl_round,
-             collaborators_chosen_each_round,
-             collaborator_times_per_round):
+                        tensor_db,
+                        tensor_name,
+                        fl_round,
+                        collaborators_chosen_each_round,
+                        collaborator_times_per_round):
     
     aggregator_lr = 1.0
 
@@ -753,7 +753,7 @@ def fedNova_simplified(local_tensors,
     else:
         # Calculate aggregator's last value
         previous_tensor_value = None
-        for record in db_iterator:
+        for _, record in tensor_db.iterrows():
             if (record['round'] == (fl_round) 
                 and record["tensor_name"] == tensor_name
                 and record["tags"] == ("aggregated",)):
