@@ -249,7 +249,8 @@ def fixed_number_of_batches(collaborators,
 # # Custom Aggregation Functions
 # Standard aggregation methods allow for simple layer-wise combination (via weighted_mean, mean, median, etc.); 
 # however, more complex aggregation methods can be supported by evaluating collaborator metrics, weights from prior rounds, etc. 
-# OpenFL enables custom aggregation functions via the [**AggregationFunctionInterface**](https://github.com/intel/openfl/blob/fets/openfl/component/aggregation_functions/interface.py). 
+# OpenFL enables custom aggregation functions via the [**AggregationFunctionInterface**]
+# (https://github.com/intel/openfl/blob/fets/openfl/component/aggregation_functions/interface.py). 
 # For the challenge, we wrap this interface so we can pass additional simulation state, such as simulated time.
 # 
 # [**LocalTensors**](https://github.com/intel/openfl/blob/fets/openfl/utilities/types.py#L13) are named tuples of the form `('collaborator_name', 'tensor', 'collaborator_weight')`. 
@@ -258,7 +259,8 @@ def fixed_number_of_batches(collaborators,
 # Using the passed tensor_db reference, participants may even store custom information by using in-place write operations. A few examples are included below.
 # 
 # We also provide a number of convenience functions to be used in conjunction with the TensorDB for those who are less familiar with pandas. 
-# These are added directly to the dataframe object that gets passed to the aggregation function to make it easier to *store* , *retrieve*, and *search* through the database so that participants can focus on algorithms instead of infrastructure / framework details.
+# These are added directly to the dataframe object that gets passed to the aggregation function to make it easier to *store* , *retrieve*,
+#  and *search* through the database so that participants can focus on algorithms instead of infrastructure / framework details.
 #
 # tensor_db.store:
 #
