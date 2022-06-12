@@ -154,10 +154,20 @@ def wy_train_col_selector(collaborators,
 
     return training_collaborators
 
+def wy_select_col_with_more_data_1(collaborators,
+                                    db_iterator,
+                                    fl_round,
+                                    collaborators_chosen_each_round,
+                                    collaborator_times_per_round):
+    # this is a list of ids for collaborator that has at least 10 data samples, hand-picked
+    preserved_col_id = [0, 2, 3, 4, 5, 6, 10, 11, 12, 14, 15, 17, 19, 20, 21] # for partition_1
+    # preserved_col_id = [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 20, 21, 23, 24, 25, 27, 28, 29, 30, 31] # for partition_2
 
+    training_collaborators = [collaborators[i] for i in preserved_col_id]
+    
+    return training_collaborators
 
-
-# # Custom hyperparameters for training
+# Custom hyperparameters for training
 
 # This simple example uses constant hyper-parameters through the experiment
 def constant_hyper_parameters(collaborators,
@@ -734,11 +744,11 @@ def FedAvgM_Selection(local_tensors,
 
 
 def fedNova_simplified(local_tensors,
-             db_iterator,
-             tensor_name,
-             fl_round,
-             collaborators_chosen_each_round,
-             collaborator_times_per_round):
+                        tensor_db,
+                        tensor_name,
+                        fl_round,
+                        collaborators_chosen_each_round,
+                        collaborator_times_per_round):
     
     aggregator_lr = 1.0
 
@@ -753,7 +763,7 @@ def fedNova_simplified(local_tensors,
     else:
         # Calculate aggregator's last value
         previous_tensor_value = None
-        for record in db_iterator:
+        for _, record in tensor_db.iterrows():
             if (record['round'] == (fl_round) 
                 and record["tensor_name"] == tensor_name
                 and record["tags"] == ("aggregated",)):
