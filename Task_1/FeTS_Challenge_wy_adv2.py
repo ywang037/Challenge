@@ -60,100 +60,86 @@ def all_collaborators_train(collaborators,
     """
     return collaborators
 
-# this is not a good algorithm, but we include it to demonstrate the following:
-    # simple use of the logger and of fl_round
-    # you can search through the "collaborator_times_per_round" dictionary to see how long collaborators have been taking
-    # you can have a subset of collaborators train in a given round
-def one_collaborator_on_odd_rounds(collaborators,
-                                   db_iterator,
-                                   fl_round,
-                                   collaborators_chosen_each_round,
-                                   collaborator_times_per_round):
-    """Chooses which collaborators will train for a given round.
-    
-    Args:
-        collaborators: list of strings of collaborator names
-        db_iterator: iterator over history of all tensors.
-            Columns: ['tensor_name', 'round', 'tags', 'nparray']
-        fl_round: round number
-        collaborators_chosen_each_round: a dictionary of {round: list of collaborators}. Each list indicates which collaborators trained in that given round.
-        collaborator_times_per_round: a dictionary of {round: {collaborator: total_time_taken_in_round}}.  
-    """
-    logger.info("one_collaborator_on_odd_rounds called!")
-    # on odd rounds, choose the fastest from the previous round
-    if fl_round % 2 == 1:
-        training_collaborators = None
-        fastest_time = np.inf
-        
-        # the previous round information will be index [fl_round - 1]
-        # this information is itself a dictionary of {col: time}
-        for col, t in collaborator_times_per_round[fl_round - 1].items():
-            if t < fastest_time:
-                fastest_time = t
-                training_collaborators = [col]
-    else:
-        training_collaborators = collaborators
-    return training_collaborators
 
 ##########################################################
 # # Custom selection functions - WY's trials
 ##########################################################
-# TODO not finished yet
-def wy_train_col_selector(collaborators,
-                        db_iterator,
-                        fl_round,
-                        collaborators_chosen_each_round,
-                        collaborator_times_per_round):
-    """ Chooses which collaborators will train for a given round:
-        select M out of N from the collaborators of the previous round, as per certain scores, e.g., dist_scores, val_scores, or hybrid_scores
-        then randomly select N-M from the rest.
-
+def wy_select_col_with_more_data_1(collaborators,
+                                    db_iterator,
+                                    fl_round,
+                                    collaborators_chosen_each_round,
+                                    collaborator_times_per_round):
+    # this is a list of ids for collaborator that has at least 10 data samples, hand-picked
+    preserved_col_id = [0, 2, 3, 4, 5, 6, 10, 11, 12, 14, 15, 17, 19, 20, 21] # for partition_1
+    training_collaborators = [collaborators[i] for i in preserved_col_id]
     
-    Args:
-        collaborators: list of strings of collaborator names
-        db_iterator: iterator over history of all tensors.
-            Columns: ['tensor_name', 'round', 'tags', 'nparray']
-        fl_round: round number
-        collaborators_chosen_each_round: a dictionary of {round: list of collaborators}. Each list indicates which collaborators trained in that given round.
-        collaborator_times_per_round: a dictionary of {round: {collaborator: total_time_taken_in_round}}.  
+    return training_collaborators
+
+def wy_select_col_with_more_data_2(collaborators,
+                                    db_iterator,
+                                    fl_round,
+                                    collaborators_chosen_each_round,
+                                    collaborator_times_per_round):
+    # this is a list of ids for collaborator that has at least 10 data samples, hand-picked
+    preserved_col_id = [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 20, 21, 23, 24, 25, 27, 28, 29, 30, 31] # for partition_2
+    training_collaborators = [collaborators[i] for i in preserved_col_id]
+    
+    return training_collaborators
+
+def wy_select_col_with_more_data_subset_1(collaborators,
+                                        db_iterator,
+                                        fl_round,
+                                        collaborators_chosen_each_round,
+                                        collaborator_times_per_round):
+    """ this function randomly select a subset of collaborators from the hand-picked list of collaborators with more than 10 data samples
+        the random selection using the probabilities which are normalized number of training samples 
     """
-    # logger.info("one_collaborator_on_odd_rounds called!")
-    training_collaborators = []
+    # this is a list of ids for collaborator that has at least 10 data samples, hand-picked
+    preserved_col_id = [0, 2, 3, 4, 5, 6, 10, 11, 12, 14, 15, 17, 19, 20, 21] # for partition_1
     
-    # metric_name = 'acc'
-    metric_name = 'loss'
-    tags = ('metric','validate_local')
-    val_loss = {}
-    # all_losses_previous_round = []
-    for record in db_iterator:
-        for col in collaborators_chosen_each_round[fl_round-1]:
-            tags = set(tags + [col])
-            if (
-                tags <= set(record['tags']) 
-                and record['round'] == fl_round-1
-                and record['tensor_name'] == metric_name
-            ):
-                val_loss[col]=record['nparray']
-                # all_losses_previous_round.append(record['nparray'])
-    
-    # get the index of the sorted loss values
-    all_losses_previous_round = [val_loss[col] for col in collaborators_chosen_each_round(fl_round-1)]
-    sorted_idx = np.argsort(all_losses_previous_round,axis=0)
-    
-    # choose 1/3 of the total collaborators from all collaborators participated in the previous round
-    num_col_to_select_from_prevous_round = int(np.round(len(collaborators)/3)) # can be manually set to an integer for partition_1 or partition 2
-    for i in range(num_col_to_select_from_prevous_round):
-        training_collaborators.append(sorted_idx[i])
+    # hand-calculated problabilities, for partition_1
+    prob_of_select = [
+        0.42371476, 0.01243781, 0.03897181, 0.01824212, 0.02819237, 
+        0.00995025, 0.01160862, 0.00912106, 0.02902156, 0.01077944, 
+        0.02487562, 0.31674959, 0.02736318, 0.02902156, 0.00995025
+        ]
+    prob_of_select = np.array(prob_of_select, dtype=np.float32) # make it a np array
 
-    # randomly choose some other collaborators from the rest 
-    num_to_select_from_the_rest = 1 # can be manually set
     rng = np.random.default_rng(35)
-    the_rest = collaborators - training_collaborators
-    selected_from_the_other = rng.choice(the_rest, num_to_select_from_the_rest, replace=False).tolist()
-    training_collaborators +=selected_from_the_other
+    num_final_pick = 10
+    final_picked_id = rng.choice(preserved_col_id, num_final_pick, replace=False, p=prob_of_select)
+    training_collaborators = [collaborators[i] for i in final_picked_id]
 
     return training_collaborators
 
+def wy_select_col_with_more_data_subset_2(collaborators,
+                                        db_iterator,
+                                        fl_round,
+                                        collaborators_chosen_each_round,
+                                        collaborator_times_per_round):
+    """ this function randomly select a subset of collaborators from the hand-picked list of collaborators with more than 10 data samples
+        the random selection using the probabilities which are normalized number of training samples 
+    """
+    
+    # this is a list of ids for collaborator that has at least 10 data samples, hand-picked
+    preserved_col_id = [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 20, 21, 23, 24, 25, 27, 28, 29, 30, 31] # for partition_2
+    
+    # hand-calculated problabilities, for partition_2
+    prob_of_select = [
+        0.14096186, 0.14096186, 0.14179104, 0.01243781, 0.013267,
+        0.01243781, 0.013267  , 0.01824212, 0.02819237, 0.00995025,
+        0.01160862, 0.00912106, 0.00995025, 0.00912106, 0.00995025,
+        0.01077944, 0.02487562, 0.1053068 , 0.1053068 , 0.10613599,
+        0.02736318, 0.00995025, 0.00912106, 0.00995025, 0.00995025
+        ]
+    prob_of_select = np.array(prob_of_select, dtype=np.float32) # make it a np array
+
+    rng = np.random.default_rng(35)
+    num_final_pick = 15
+    final_picked_id = rng.choice(preserved_col_id, num_final_pick, replace=False, p=prob_of_select)
+    training_collaborators = [collaborators[i] for i in final_picked_id]
+    
+    return training_collaborators
 
 
 
