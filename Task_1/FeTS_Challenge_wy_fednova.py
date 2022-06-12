@@ -785,6 +785,11 @@ aggregation_function = fedNova_simplified
 # aggregation_function = wy_agg_func_adv2
 
 choose_training_collaborators = all_collaborators_train
+# choose_training_collaborators = wy_select_col_with_more_data_1
+# choose_training_collaborators = wy_select_col_with_more_data_2
+# choose_training_collaborators = wy_select_col_with_more_data_subset_1
+# choose_training_collaborators = wy_select_col_with_more_data_subset_2
+
 training_hyper_parameters_for_round = constant_hyper_parameters
 
 # As mentioned in the 'Custom Aggregation Functions' section (above), six 
