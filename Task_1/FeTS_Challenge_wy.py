@@ -195,7 +195,7 @@ def wy_select_col_with_more_data_subset_1(collaborators,
         ]
     prob_of_select = np.array(prob_of_select, dtype=np.float32) # make it a np array
 
-    rng = np.random.default_rng(35)
+    rng = np.random.default_rng()
     num_final_pick = 10
     final_picked_id = rng.choice(preserved_col_id, num_final_pick, replace=False, p=prob_of_select)
     training_collaborators = [collaborators[i] for i in final_picked_id]
@@ -224,7 +224,7 @@ def wy_select_col_with_more_data_subset_2(collaborators,
         ]
     prob_of_select = np.array(prob_of_select, dtype=np.float32) # make it a np array
 
-    rng = np.random.default_rng(35)
+    rng = np.random.default_rng()
     num_final_pick = 15
     final_picked_id = rng.choice(preserved_col_id, num_final_pick, replace=False, p=prob_of_select)
     training_collaborators = [collaborators[i] for i in final_picked_id]
