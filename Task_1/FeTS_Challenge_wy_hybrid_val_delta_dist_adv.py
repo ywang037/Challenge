@@ -410,7 +410,7 @@ def get_val_loss_delta_score(local_tensors,tensor_db,fl_round):
                 and record['tensor_name'] == metric_name
             ):
                 val_loss_agg[col]=record['nparray']
-                val_loss_delta[col] = max(val_loss_local - val_loss_agg[col],0) # local validation is supposed to be done after agg model validation
+                val_loss_delta[col] = max(val_loss_local[col] - val_loss_agg[col],0) # local validation is supposed to be done after agg model validation
 
     sum=0
     for _, loss in val_loss_delta.items():
