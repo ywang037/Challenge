@@ -1279,6 +1279,19 @@ def fedNova_simplified(local_tensors,
         
         return new_tensor_weight
 
+# define centralized-alike approach
+def central_train_sim(local_tensors,
+                    tensor_db,
+                    tensor_name,
+                    fl_round,
+                    collaborators_chosen_each_round,
+                    collaborator_times_per_round):
+    """ in this case, partition_0.csv is to be used, only one collaborator 'col 1' who has all the training data
+        to simulate a centralized training
+    """
+    tensor_values = local_tensors[0].tensor # the only one 
+    return np.average(tensor_values, axis=0)
+
 # # Running the Experiment
 # 
 # ```run_challenge_experiment``` is singular interface where your custom methods can be passed.
@@ -1300,6 +1313,7 @@ def fedNova_simplified(local_tensors,
 aggregation_function = weighted_average_aggregation
 # aggregation_function = FedAvgM_Selection
 # aggregation_function = fedNova_simplified
+# aggregation_function = central_train_sim
 
 # # choose from the following list for customized aggregation function
 # # dist-based methods
