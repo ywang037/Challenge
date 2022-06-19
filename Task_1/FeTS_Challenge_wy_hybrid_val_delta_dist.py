@@ -396,7 +396,7 @@ def get_val_loss_delta_score(local_tensors,tensor_db,fl_round):
         for t in local_tensors:
             col = t.col_name
             tags_local = set(tags_local + tuple([col]))
-            tags_agg = set(tags_local + tuple([col]))
+            tags_agg = set(tags_agg + tuple([col]))
             record_tags = record['tags']
             if (
                 tags_local <= set(record_tags) 
