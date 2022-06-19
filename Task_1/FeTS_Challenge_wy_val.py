@@ -274,19 +274,29 @@ def get_dist_score2(local_tensors, tensor_db, tensor_name, fl_round):
 
     return dist_scores
 
-# get the validation loss of every collaborators in a specific round
 def get_val_loss_score(local_tensors,tensor_db,fl_round):
-    # metric_name = 'acc'
-    metric_name = 'loss'
+    """ this function get the local validation loss of each col
+    """
+    # metric_name = 'valid_dice'
+    metric_name = 'valid_loss'
     tags_local = ('metric','validate_local')
     val_loss = {}
     for _, record in tensor_db.iterrows():
         for t in local_tensors:
-            tags = set(tags_local + tuple([t.col_name]))
+            col = t.col_name
+            tags = set(tags_local + tuple([col]))
             record_tags = record['tags']
+            
+            # # debug prints
+            # if tags <= set(record_tags):
+            #     print('====CHECK====',tags)
+            #     print('====CHECK====',set(record_tags))
+            #     print('====CHECK====',record['tensor_name'])
+            #     print('====CHECK====',record['tensor_name'] == metric_name)
+
             if (
                 tags <= set(record_tags) 
-                and record['round'] == fl_round-1
+                and record['round'] == fl_round
                 and record['tensor_name'] == metric_name
             ):
                 val_loss[col]=record['nparray']
@@ -296,20 +306,55 @@ def get_val_loss_score(local_tensors,tensor_db,fl_round):
     for _, loss in val_loss.items():
         sum += loss
     for col, loss in val_loss.items():
-        val_loss[col] = loss/sum   
+        val_loss[col] = loss/sum
     val_scores = np.array([val_loss[t.col_name] for t in local_tensors],dtype=np.float64)
     return val_loss, val_scores
-    # val_loss = []
-    # for _, record in tensor_db.iterrows():
-    #     for local_tensor in local_tensors:
-    #         tags = set(tags + tuple([local_tensor.col_name]))
-    #         if (
-    #             tags <= set(record['tags']) 
-    #             and record['round'] == fl_round
-    #             and record['tensor_name'] == metric_name
-    #         ):
-    #             val_loss.append(record['nparray'])
-    # return np.array(val_loss,dtype=np.float64)
+
+def get_val_loss_delta_score(local_tensors,tensor_db,fl_round):
+    """ this function gets the reduction in validation loss for each col,
+        the reduction is cast to zero if it is negative
+        i.e., max(validate_local - validate_agg, 0)
+    """
+    # metric_name = 'valid_dice'
+    metric_name = 'valid_loss'
+    tags_local = ('metric','validate_local')
+    tags_agg = ('metric','validate_agg')
+    val_loss_local, val_loss_agg, val_loss_delta = {}, {}, {}
+    for _, record in tensor_db.iterrows():
+        for t in local_tensors:
+            col = t.col_name
+            tags_local = set(tags_local + tuple([col]))
+            tags_agg = set(tags_local + tuple([col]))
+            record_tags = record['tags']
+            if (
+                tags_local <= set(record_tags) 
+                and record['round'] == fl_round
+                and record['tensor_name'] == metric_name
+            ):
+                val_loss_local[col]=record['nparray']
+            if (
+                tags_agg <= set(record_tags) 
+                and record['round'] == fl_round
+                and record['tensor_name'] == metric_name
+            ):
+                val_loss_agg[col]=record['nparray']
+                val_loss_delta[col] = max(val_loss_local - val_loss_agg[col],0) # local validation is supposed to be done after agg model validation
+
+    sum=0
+    for _, loss in val_loss_delta.items():
+        sum += loss
+    if sum:        
+        # if sum is not zero, i.e., at least one col has positive reduction in val loss, then do normalization
+        for col, loss in val_loss_delta.items():
+            val_loss_delta[col] = loss/sum   
+        val_loss_delta_scores = np.array([val_loss_delta[t.col_name] for t in local_tensors],dtype=np.float64)
+    else:
+        # if none of the cols reduces local validation loss, then output None, 
+        # then let the caller function decide if output is None
+        val_loss_delta = None
+        val_loss_delta_scores = None
+    
+    return val_loss_delta, val_loss_delta_scores
 
 def get_hybrid_score(local_tensors, tensor_db, tensor_name, fl_round):
     # get the scores w.r.t. to closseness/distance
@@ -317,6 +362,7 @@ def get_hybrid_score(local_tensors, tensor_db, tensor_name, fl_round):
     
     # get the scores w.r.t. local validation loss
     _, val_scores = get_val_loss_score(local_tensors,tensor_db,fl_round)
+    _, val_delta_scores = get_val_loss_delta_score(local_tensors,tensor_db,fl_round)
 
     # get the hybrid scores
     hybrid_scores = dist_scores * val_scores
@@ -403,12 +449,12 @@ def wy_agg_func_val(local_tensors,
     else:        
         # get the scores w.r.t. local validation loss
         val_loss, _ = get_val_loss_score(local_tensors,tensor_db,fl_round)
+        # val_loss = get_val_loss_score(local_tensors,tensor_db,fl_round)
         
         # compute the aggregated model
         tensor_values = [t.tensor for t in local_tensors]
         weight_values = [val_loss[t.col_name] for t in local_tensors]
         new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)  
-    
     return new_tensor_agg
 
 # as the wy_agg_func_val is not working, this function is pending revision
