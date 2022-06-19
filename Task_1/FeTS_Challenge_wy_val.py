@@ -278,14 +278,14 @@ def get_dist_score2(local_tensors, tensor_db, tensor_name, fl_round):
 def get_val_loss_score(local_tensors,tensor_db,fl_round):
     # metric_name = 'acc'
     metric_name = 'loss'
-    tags = ('metric','validate_local')
+    tags_local = ('metric','validate_local')
     val_loss = {}
     for _, record in tensor_db.iterrows():
         for t in local_tensors:
-            tags = set(tags + tuple([t.col_name]))
+            tags = set(tags_local + tuple([t.col_name]))
             record_tags = record['tags']
             if (
-                set(tags) <= set(record_tags) 
+                tags <= set(record_tags) 
                 and record['round'] == fl_round-1
                 and record['tensor_name'] == metric_name
             ):
