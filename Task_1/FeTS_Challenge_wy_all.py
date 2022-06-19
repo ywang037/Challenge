@@ -1297,16 +1297,40 @@ def fedNova_simplified(local_tensors,
 
 
 # change any of these you wish to your custom functions. You may leave defaults if you wish.
-# aggregation_function = weighted_average_aggregation
+aggregation_function = weighted_average_aggregation
 # aggregation_function = FedAvgM_Selection
 # aggregation_function = fedNova_simplified
 
-aggregation_function = wy_agg_func_dist
-# aggregation_function = wy_agg_func_val
-# aggregation_function = wy_agg_func_hybrid
-# aggregation_function = wy_agg_func_adv
-# aggregation_function = wy_agg_func_adv2
+# choose from the following list for customized aggregation function
+# dist-based methods
+aggregation_function = wy_agg_func_dist # plain
+aggregation_function = wy_agg_func_dist_adv # adv
+aggregation_function = wy_agg_func_dist_adv2 # adv2
+
+# val loss based methods
+aggregation_function = wy_agg_func_val # plain
+aggregation_function = wy_agg_func_val_adv # adv
+aggregation_function = wy_agg_func_val_adv2 # adv2
+
+# delta val loss based methods
+aggregation_function = wy_agg_func_val_delta # plain
+aggregation_function = wy_agg_func_val_delta_adv # adv
+aggregation_function = wy_agg_func_val_delta_adv2 # adv2
+
+# val & dist hybrid methods
+aggregation_function = wy_agg_func_hybrid_val # basic
+aggregation_function = wy_agg_func_hybrid_val_adv # adv
+aggregation_function = wy_agg_func_hybrid_val_adv2 # adv2
+
+# val & dist hybrid methods
+aggregation_function = wy_agg_func_hybrid_val_delta # basic 
+aggregation_function = wy_agg_func_hybrid_val_delta_adv # adv
+aggregation_function = wy_agg_func_hybrid_val_delta_adv2 # adv2
+
+# training col selection strategy
 choose_training_collaborators = all_collaborators_train
+
+# hyper param.
 training_hyper_parameters_for_round = constant_hyper_parameters
 
 # As mentioned in the 'Custom Aggregation Functions' section (above), six 
@@ -1318,9 +1342,10 @@ include_validation_with_hausdorff=False
 
 # We encourage participants to experiment with partitioning_1 and partitioning_2, as well as to create
 # other partitionings to test your changes for generalization to multiple partitionings.
+institution_split_csv_filename = 'small_split.csv'
 # institution_split_csv_filename = 'partitioning_1.csv'
-institution_split_csv_filename = 'partitioning_2.csv'
-# institution_split_csv_filename = 'small_split.csv'
+# institution_split_csv_filename = 'partitioning_2.csv'
+
 
 # change this to point to the parent directory of the data
 brats_training_data_parent_dir = '/home/wang_yuan/fets2022/Data/TrainingData'
