@@ -280,12 +280,12 @@ def get_val_loss_score(local_tensors,tensor_db,fl_round):
     metric_name = 'loss'
     tags = ('metric','validate_local')
     val_loss = {}
-    for record in tensor_db.iterrows():
+    for _, record in tensor_db.iterrows():
         for t in local_tensors:
-            # tags = set(tags + tuple([t.col_name]))
-            some_tuple = record['tags']
+            tags = set(tags + tuple([t.col_name]))
+            record_tags = record['tags']
             if (
-                set(tags + tuple([t.col_name])) <= set(some_tuple) 
+                set(tags) <= set(record_tags) 
                 and record['round'] == fl_round-1
                 and record['tensor_name'] == metric_name
             ):
@@ -814,7 +814,7 @@ brats_training_data_parent_dir = '/home/wang_yuan/fets2022/Data/TrainingData'
 
 # increase this if you need a longer history for your algorithms
 # decrease this if you need to reduce system RAM consumption
-db_store_rounds = 10
+db_store_rounds = 1
 
 # this is passed to PyTorch, so set it accordingly for your system
 device = 'cuda'
