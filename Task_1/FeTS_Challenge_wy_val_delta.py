@@ -395,17 +395,17 @@ def get_val_loss_delta_score(local_tensors,tensor_db,fl_round):
     for _, record in tensor_db.iterrows():
         for t in local_tensors:
             col = t.col_name
-            tags_local = set(tags_local + tuple([col]))
-            tags_agg = set(tags_agg + tuple([col]))
+            tags_local_ = set(tags_local + tuple([col]))
+            tags_agg_ = set(tags_agg + tuple([col]))
             record_tags = record['tags']
             if (
-                tags_local <= set(record_tags) 
+                tags_local_ <= set(record_tags) 
                 and record['round'] == fl_round
                 and record['tensor_name'] == metric_name
             ):
                 val_loss_local[col]=record['nparray']
             if (
-                tags_agg <= set(record_tags) 
+                tags_agg_ <= set(record_tags) 
                 and record['round'] == fl_round
                 and record['tensor_name'] == metric_name
             ):
