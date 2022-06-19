@@ -1354,7 +1354,7 @@ brats_training_data_parent_dir = '/home/wang_yuan/fets2022/Data/TrainingData'
 
 # increase this if you need a longer history for your algorithms
 # decrease this if you need to reduce system RAM consumption
-db_store_rounds = 10
+db_store_rounds = 1
 
 # this is passed to PyTorch, so set it accordingly for your system
 device = 'cuda'
@@ -1443,3 +1443,6 @@ time_end = time.time()
 # show the time elapsed for this session
 sesseion_time = np.around((time_end-time_start)/3600, 2)
 print('Session time: {} hrs. That\'s all folks.'.format(sesseion_time))
+
+time_end_stamp = time.strftime('%y-%m-%d-%H-%M-%S')
+print(f'Session completed at {time_end_stamp}')
