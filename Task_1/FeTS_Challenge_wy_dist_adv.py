@@ -395,22 +395,27 @@ def get_val_loss_delta_score(local_tensors,tensor_db,fl_round):
     for _, record in tensor_db.iterrows():
         for t in local_tensors:
             col = t.col_name
-            tags_local = set(tags_local + tuple([col]))
-            tags_agg = set(tags_local + tuple([col]))
+            tags_local_ = set(tags_local + tuple([col]))
+            tags_agg_ = set(tags_agg + tuple([col]))
             record_tags = record['tags']
             if (
-                tags_local <= set(record_tags) 
+                tags_local_ <= set(record_tags) 
                 and record['round'] == fl_round
                 and record['tensor_name'] == metric_name
             ):
                 val_loss_local[col]=record['nparray']
             if (
-                tags_agg <= set(record_tags) 
+                tags_agg_ <= set(record_tags) 
                 and record['round'] == fl_round
                 and record['tensor_name'] == metric_name
             ):
                 val_loss_agg[col]=record['nparray']
-                val_loss_delta[col] = max(val_loss_local - val_loss_agg[col],0) # local validation is supposed to be done after agg model validation
+                # val_loss_delta[col] = max(val_loss_local[col] - val_loss_agg[col],0) # local validation is supposed to be done after agg model validation
+
+    for t in local_tensors:
+        col = t.col_name
+        delta_loss = val_loss_local[col] - val_loss_agg[col]
+        val_loss_delta[col] = max(delta_loss,0) # local validation is supposed to be done after agg model validation
 
     sum=0
     for _, loss in val_loss_delta.items():
