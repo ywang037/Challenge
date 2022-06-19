@@ -1315,7 +1315,7 @@ def central_train_sim(local_tensors,
 
 
 # change any of these you wish to your custom functions. You may leave defaults if you wish.
-aggregation_function = weighted_average_aggregation
+# aggregation_function = weighted_average_aggregation
 # aggregation_function = FedAvgM_Selection
 # aggregation_function = fedNova_simplified
 # aggregation_function = central_train_sim
