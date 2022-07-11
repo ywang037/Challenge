@@ -249,7 +249,7 @@ def run_challenge_experiment(aggregation_function,
     path.insert(0, str(work))
     
     # create gandlf_csv and get collaborator names
-    gandlf_csv_path = os.path.join(work, 'gandlf_paths.csv')
+    gandlf_csv_path = os.path.join(work, 'gandlf_paths.csv')  #NOTE maybe you can specify this file to do manual train-val split so that fix the val data samples
     # split_csv_path = os.path.join(work, institution_split_csv_filename)
     collaborator_names = construct_fedsim_csv(brats_training_data_parent_dir,
                                               institution_split_csv_filename,

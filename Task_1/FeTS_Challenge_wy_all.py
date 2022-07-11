@@ -160,8 +160,7 @@ def wy_select_col_with_more_data_1(collaborators,
                                     collaborators_chosen_each_round,
                                     collaborator_times_per_round):
     # this is a list of ids for collaborator that has at least 10 data samples, hand-picked
-    preserved_col_id = [0, 2, 3, 4, 5, 6, 10, 11, 12, 14, 15, 17, 19, 20] # for partition_1
-    training_collaborators = [collaborators[i] for i in preserved_col_id]
+    training_collaborators = ['1', '3', '4', '5', '6', '7', '11', '12', '13', '15', '16', '18', '20', '21']
     
     return training_collaborators
 
@@ -171,9 +170,7 @@ def wy_select_col_with_more_data_2(collaborators,
                                     collaborators_chosen_each_round,
                                     collaborator_times_per_round):
     # this is a list of ids for collaborator that has at least 10 data samples, hand-picked
-    preserved_col_id = [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 20, 21, 23, 24, 25, 27, 28, 29, 30] # for partition_2
-    training_collaborators = [collaborators[i] for i in preserved_col_id]
-    
+    training_collaborators = preserved_col_id = ['1', '2', '3', '5', '6', '7', '8', '9', '10', '11', '15', '16', '17', '18', '19', '21', '22', '24', '25', '26', '28', '29', '30', '31'] # for partition_2
     return training_collaborators
 
 def wy_select_col_with_more_data_subset_1(collaborators,
@@ -206,31 +203,75 @@ def wy_select_col_with_more_data_subset_1(collaborators,
 
     return training_collaborators
 
-def wy_select_col_with_more_data_subset_2(collaborators,
-                                        db_iterator,
-                                        fl_round,
-                                        collaborators_chosen_each_round,
-                                        collaborator_times_per_round):
-    """ this function randomly select a subset of collaborators from the hand-picked list of collaborators with more than 10 data samples
+def random_sel_more_data_subset_p2(collaborators,
+                                    db_iterator,
+                                    fl_round,
+                                    collaborators_chosen_each_round,
+                                    collaborator_times_per_round):
+    """ this function randomly select training cols. from the hand-picked subset of all cols. with more than 10 data samples
         the random selection using the probabilities which are normalized number of training samples 
     """
     
     # this is a list of ids for collaborator that has at least 10 data samples, hand-picked
-    preserved_col_id = [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 20, 21, 23, 24, 25, 27, 28, 29, 30] # for partition_2
+    preserved_col_id = ['1', '2', '3', '5', '6', '7', '8', '9', '10', '11', '15', '16', '17', '18', '19', '21', '22', '24', '25', '26', '28', '29', '30', '31']
     
     # hand-calculated problabilities, for partition_2
-    prob_of_select = [
+    prob_sel = [
         0.14237856, 0.14237856, 0.14321608, 0.01256281, 0.01340034, 0.01256281,
         0.01340034, 0.01842546, 0.02847571, 0.01005025, 0.01172529, 0.00921273,
         0.01005025, 0.00921273, 0.01005025, 0.01088777, 0.02512563, 0.10636516,
         0.10636516, 0.10720268, 0.02763819, 0.01005025, 0.00921273, 0.01005025
         ]
-    prob_of_select = np.array(prob_of_select, dtype=np.float32) # make it a np array
+    prob_sel = np.array(prob_sel, dtype=np.float32) # make it a np array
 
     rng = np.random.default_rng()
-    num_final_pick = 15
-    final_picked_id = rng.choice(preserved_col_id, num_final_pick, replace=False, p=prob_of_select)
-    training_collaborators = [collaborators[i] for i in final_picked_id]
+    num_final_pick = 8 # 8 out of 33 approximately 25% ratio, 6 out of 33 approx. 20% ratio
+    training_collaborators = rng.choice(preserved_col_id, num_final_pick, replace=False, p=prob_sel)
+    
+    return training_collaborators
+
+def random_sel_more_data_p2(collaborators,
+                            db_iterator,
+                            fl_round,
+                            collaborators_chosen_each_round,
+                            collaborator_times_per_round):
+    """ this function randomly selects training cols. from partition_2, 
+        using the probabilities calculated as the normalized number of data samples
+        so cols. have more data are more likely to be selected.
+    """
+    col_ids = [
+        '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 
+        '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', 
+        '21', '22', '23', '24', '25', '26', '27', '28', '29', '30',
+        '31', '32', '33'
+        ]
+    prob_sel = [
+        0.13589129, 0.13589129, 0.13669065, 0.00479616, 0.01199041, 0.01278977,
+        0.01199041, 0.01278977, 0.01758593, 0.02717826, 0.00959233, 0.00639488,
+        0.00319744, 0.00639488, 0.01119105, 0.00879297, 0.00959233, 0.00879297,
+        0.00959233, 0.00479616, 0.01039169, 0.02398082, 0.00719424, 0.10151878,
+        0.10151878, 0.10231815, 0.00319744, 0.0263789,  0.00959233, 0.00879297,
+        0.00959233, 0.00559552, 0.0039968
+        ]
+    prob_sel = np.array(prob_sel, dtype=np.float32) # make it a np array
+
+    rng = np.random.default_rng()
+    num_final_pick = 8 # 8 out of 33 approximately 25% ratio, 6 out of 33 approx. 20% ratio
+    training_collaborators = rng.choice(col_ids, num_final_pick, replace=False, p=prob_sel)
+    
+    return training_collaborators
+
+def select_top6_cols_p2(collaborators,
+                    db_iterator,
+                    fl_round,
+                    collaborators_chosen_each_round,
+                    collaborator_times_per_round):
+    """ this function randomly select a subset of collaborators from the hand-picked list of collaborators with more than 10 data samples
+        the random selection using the probabilities which are normalized number of training samples 
+    """
+    
+    # this is a list of ids of the 5 collaborators that have more than 100 data samples, in partition_2
+    training_collaborators = ['1', '2', '3', '24', '25', '26']
     
     return training_collaborators
 
@@ -265,7 +306,99 @@ def constant_hyper_parameters(collaborators,
     learning_rate = 5e-5
     return (learning_rate, epochs_per_round, batches_per_round)
 
+# This simple example uses constant hyper-parameters through the experiment
+def lr_schedular_1(collaborators,
+                db_iterator,
+                fl_round,
+                collaborators_chosen_each_round,
+                collaborator_times_per_round):
+    """Set the learning rate for each fl round.
+    
+    Args:
+        collaborators: list of strings of collaborator names
+        db_iterator: iterator over history of all tensors.
+            Columns: ['tensor_name', 'round', 'tags', 'nparray']
+        fl_round: round number
+        collaborators_chosen_each_round: a dictionary of {round: list of collaborators}. Each list indicates which collaborators trained in that given round.
+        collaborator_times_per_round: a dictionary of {round: {collaborator: total_time_taken_in_round}}.  
+    Returns:
+        tuple of (learning_rate, epochs_per_round, batches_per_round). One of epochs_per_round and batches_per_round must be None.
+    """
+    epochs_per_round = 1.0
+    batches_per_round = None
+    init_learning_rate = 5e-5
+    if fl_round<int(10):
+        learning_rate = init_learning_rate # for the first 10 rounds, use default value 
+    else:
+        learning_rate = 0.5 * init_learning_rate
+    return (learning_rate, epochs_per_round, batches_per_round)
 
+def lr_schedular_2(collaborators,
+                db_iterator,
+                fl_round,
+                collaborators_chosen_each_round,
+                collaborator_times_per_round):
+    """Set the learning rate for each fl round.
+    
+    Args:
+        collaborators: list of strings of collaborator names
+        db_iterator: iterator over history of all tensors.
+            Columns: ['tensor_name', 'round', 'tags', 'nparray']
+        fl_round: round number
+        collaborators_chosen_each_round: a dictionary of {round: list of collaborators}. Each list indicates which collaborators trained in that given round.
+        collaborator_times_per_round: a dictionary of {round: {collaborator: total_time_taken_in_round}}.  
+    Returns:
+        tuple of (learning_rate, epochs_per_round, batches_per_round). One of epochs_per_round and batches_per_round must be None.
+    """
+    # we leave these parameters unchanged
+    epochs_per_round = 1.0
+    batches_per_round = None
+    
+    init_learning_rate = 5e-5 # intial lr is the same as the default value
+    lr_multiplier = [5, 2, 1]
+    # lr_multiplier = [10, 1, 0.1]
+    # lr_multiplier = [5, 1, 0.2]
+    # lr_multiplier = [2, 1, 0.5]
+    
+
+    if fl_round<int(5):
+        learning_rate = init_learning_rate * lr_multiplier[0]
+    elif fl_round<int(9):
+        learning_rate = init_learning_rate * lr_multiplier[1] 
+    else:
+        learning_rate = init_learning_rate * lr_multiplier[1] 
+    return (learning_rate, epochs_per_round, batches_per_round)
+
+def lr_schedular_3(collaborators,
+                db_iterator,
+                fl_round,
+                collaborators_chosen_each_round,
+                collaborator_times_per_round):
+    """Set the learning rate for each fl round.
+    
+    Args:
+        collaborators: list of strings of collaborator names
+        db_iterator: iterator over history of all tensors.
+            Columns: ['tensor_name', 'round', 'tags', 'nparray']
+        fl_round: round number
+        collaborators_chosen_each_round: a dictionary of {round: list of collaborators}. Each list indicates which collaborators trained in that given round.
+        collaborator_times_per_round: a dictionary of {round: {collaborator: total_time_taken_in_round}}.  
+    Returns:
+        tuple of (learning_rate, epochs_per_round, batches_per_round). One of epochs_per_round and batches_per_round must be None.
+    """
+    # we leave these parameters unchanged
+    epochs_per_round = 1.0
+    batches_per_round = None
+    
+    init_learning_rate = 5e-5 # intial lr is the same as the default value
+    lr_decay = 0.9
+
+    if fl_round == 0:
+        learning_rate = init_learning_rate
+    else:
+        learning_rate = init_learning_rate * lr_decay
+
+    return (learning_rate, epochs_per_round, batches_per_round)
 
 ##########################################################
 # # Custom Aggregation Functions - WY's trials
@@ -1316,41 +1449,45 @@ def central_train_sim(local_tensors,
 
 # change any of these you wish to your custom functions. You may leave defaults if you wish.
 aggregation_function = weighted_average_aggregation
-# aggregation_function = FedAvgM_Selection
-# aggregation_function = fedNova_simplified
-# aggregation_function = central_train_sim
+aggregation_function = FedAvgM_Selection
+aggregation_function = fedNova_simplified
+aggregation_function = central_train_sim
 
-# # choose from the following list for customized aggregation function
-# # dist-based methods
-# aggregation_function = wy_agg_func_dist # plain
-# aggregation_function = wy_agg_func_dist_adv # adv
-# aggregation_function = wy_agg_func_dist_adv2 # adv2
+# choose from the following list for customized aggregation function
+# dist-based methods
+aggregation_function = wy_agg_func_dist # plain
+aggregation_function = wy_agg_func_dist_adv # adv
+aggregation_function = wy_agg_func_dist_adv2 # adv2
 
-# # val loss based methods
-# aggregation_function = wy_agg_func_val # plain
-# aggregation_function = wy_agg_func_val_adv # adv
-# aggregation_function = wy_agg_func_val_adv2 # adv2
+# val loss based methods
+aggregation_function = wy_agg_func_val # plain
+aggregation_function = wy_agg_func_val_adv # adv
+aggregation_function = wy_agg_func_val_adv2 # adv2
 
-# # delta val loss based methods
-# aggregation_function = wy_agg_func_val_delta # plain
-# aggregation_function = wy_agg_func_val_delta_adv # adv
-# aggregation_function = wy_agg_func_val_delta_adv2 # adv2
+# delta val loss based methods
+aggregation_function = wy_agg_func_val_delta # plain
+aggregation_function = wy_agg_func_val_delta_adv # adv
+aggregation_function = wy_agg_func_val_delta_adv2 # adv2
 
-# # val & dist hybrid methods
-# aggregation_function = wy_agg_func_hybrid_val # basic
-# aggregation_function = wy_agg_func_hybrid_val_adv # adv
-# aggregation_function = wy_agg_func_hybrid_val_adv2 # adv2
+# val & dist hybrid methods
+aggregation_function = wy_agg_func_hybrid_val # basic
+aggregation_function = wy_agg_func_hybrid_val_adv # adv
+aggregation_function = wy_agg_func_hybrid_val_adv2 # adv2
 
-# # val & dist hybrid methods
-# aggregation_function = wy_agg_func_hybrid_val_delta # basic 
-# aggregation_function = wy_agg_func_hybrid_val_delta_adv # adv
-# aggregation_function = wy_agg_func_hybrid_val_delta_adv2 # adv2
+# val & dist hybrid methods
+aggregation_function = wy_agg_func_hybrid_val_delta # basic 
+aggregation_function = wy_agg_func_hybrid_val_delta_adv # adv
+aggregation_function = wy_agg_func_hybrid_val_delta_adv2 # adv2
 
 # training col selection strategy
 choose_training_collaborators = all_collaborators_train
+choose_training_collaborators = select_top6_cols_p2
+choose_training_collaborators = random_sel_more_data_p2
+choose_training_collaborators = random_sel_more_data_subset_p2
 
 # hyper param.
 training_hyper_parameters_for_round = constant_hyper_parameters
+training_hyper_parameters_for_round = lr_schedular_1
 
 # As mentioned in the 'Custom Aggregation Functions' section (above), six 
 # perfomance evaluation metrics are included by default for validation outputs in addition 
@@ -1361,9 +1498,9 @@ include_validation_with_hausdorff=False
 
 # We encourage participants to experiment with partitioning_1 and partitioning_2, as well as to create
 # other partitionings to test your changes for generalization to multiple partitionings.
-institution_split_csv_filename = 'small_split.csv'
+# institution_split_csv_filename = 'small_split.csv'
 # institution_split_csv_filename = 'partitioning_1.csv'
-# institution_split_csv_filename = 'partitioning_2.csv'
+institution_split_csv_filename = 'partitioning_2.csv'
 # institution_split_csv_filename = 'partitioning_2_top5_clients.csv'
 # institution_split_csv_filename = 'partitioning_2_rand_pick_5.csv'
 
@@ -1412,6 +1549,13 @@ scores_dataframe, checkpoint_folder = run_challenge_experiment(
 
 
 scores_dataframe
+print(scores_dataframe)
+
+from pathlib import Path
+# infer participant home folder
+home = str(Path.home())
+scores_dataframe_file = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'scores_df.csv')
+scores_dataframe.to_csv(scores_dataframe_file)
 
 
 # ## Produce NIfTI files for best model outputs on the validation set
@@ -1423,39 +1567,39 @@ scores_dataframe
 # experiment (look for the log entry: "Created experiment folder experiment_##..." above).
 
 
-from fets_challenge import model_outputs_to_disc
-from pathlib import Path
+# from fets_challenge import model_outputs_to_disc
+# from pathlib import Path
 
-# infer participant home folder
-home = str(Path.home())
+# # infer participant home folder
+# home = str(Path.home())
 
-# you will need to specify the correct experiment folder and the parent directory for
-# the data you want to run inference over (assumed to be the experiment that just completed)
+# # you will need to specify the correct experiment folder and the parent directory for
+# # the data you want to run inference over (assumed to be the experiment that just completed)
 
-#checkpoint_folder='experiment_1'
-#data_path = </PATH/TO/CHALLENGE_VALIDATION_DATA>
-data_path = '/home/wang_yuan/fets2022/Data/ValidationData'
-validation_csv_filename = 'validation.csv'
+# #checkpoint_folder='experiment_1'
+# #data_path = </PATH/TO/CHALLENGE_VALIDATION_DATA>
+# data_path = '/home/wang_yuan/fets2022/Data/ValidationData'
+# validation_csv_filename = 'validation.csv'
 
-# you can keep these the same if you wish
-final_model_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'best_model.pkl')
+# # you can keep these the same if you wish
+# final_model_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'best_model.pkl')
 
-# If the experiment is only run for a single round, use the temp model instead
-if not Path(final_model_path).exists():
-   final_model_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'temp_model.pkl')
+# # If the experiment is only run for a single round, use the temp model instead
+# if not Path(final_model_path).exists():
+#    final_model_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'temp_model.pkl')
 
-outputs_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'model_outputs')
+# outputs_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'model_outputs')
 
 
-# Using this best model, we can now produce NIfTI files for model outputs 
-# using a provided data directory
+# # Using this best model, we can now produce NIfTI files for model outputs 
+# # using a provided data directory
 
-model_outputs_to_disc(data_path=data_path, 
-                      validation_csv=validation_csv_filename,
-                      output_path=outputs_path, 
-                      native_model_path=final_model_path,
-                      outputtag='',
-                      device=device)
+# model_outputs_to_disc(data_path=data_path, 
+#                       validation_csv=validation_csv_filename,
+#                       output_path=outputs_path, 
+#                       native_model_path=final_model_path,
+#                       outputtag='',
+#                       device=device)
 
 time_end = time.time()
 

@@ -1362,10 +1362,10 @@ include_validation_with_hausdorff=False
 
 # We encourage participants to experiment with partitioning_1 and partitioning_2, as well as to create
 # other partitionings to test your changes for generalization to multiple partitionings.
-institution_split_csv_filename = 'small_split.csv'
+# institution_split_csv_filename = 'small_split.csv'
 # institution_split_csv_filename = 'partitioning_1.csv'
 # institution_split_csv_filename = 'partitioning_2.csv'
-# institution_split_csv_filename = 'partitioning_2_top5_clients.csv'
+institution_split_csv_filename = 'partitioning_2_top5_clients.csv'
 # institution_split_csv_filename = 'partitioning_2_rand_pick_5.csv'
 
 
@@ -1413,56 +1413,56 @@ scores_dataframe, checkpoint_folder = run_challenge_experiment(
 
 
 scores_dataframe
+print(scores_dataframe)
+
+# # ## Produce NIfTI files for best model outputs on the validation set
+# # Now we will produce model outputs to submit to the leader board.
+# # 
+# # At the end of every experiment, the best model (according to average ET, TC, WT DICE) 
+# # is saved to disk at: ~/.local/workspace/checkpoint/\<checkpoint folder\>/best_model.pkl,
+# # where \<checkpoint folder\> is the one printed to stdout during the start of the 
+# # experiment (look for the log entry: "Created experiment folder experiment_##..." above).
 
 
-# ## Produce NIfTI files for best model outputs on the validation set
-# Now we will produce model outputs to submit to the leader board.
-# 
-# At the end of every experiment, the best model (according to average ET, TC, WT DICE) 
-# is saved to disk at: ~/.local/workspace/checkpoint/\<checkpoint folder\>/best_model.pkl,
-# where \<checkpoint folder\> is the one printed to stdout during the start of the 
-# experiment (look for the log entry: "Created experiment folder experiment_##..." above).
+# from fets_challenge import model_outputs_to_disc
+# from pathlib import Path
+
+# # infer participant home folder
+# home = str(Path.home())
+
+# # you will need to specify the correct experiment folder and the parent directory for
+# # the data you want to run inference over (assumed to be the experiment that just completed)
+
+# #checkpoint_folder='experiment_1'
+# #data_path = </PATH/TO/CHALLENGE_VALIDATION_DATA>
+# data_path = '/home/wang_yuan/fets2022/Data/ValidationData'
+# validation_csv_filename = 'validation.csv'
+
+# # you can keep these the same if you wish
+# final_model_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'best_model.pkl')
+
+# # If the experiment is only run for a single round, use the temp model instead
+# if not Path(final_model_path).exists():
+#    final_model_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'temp_model.pkl')
+
+# outputs_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'model_outputs')
 
 
-from fets_challenge import model_outputs_to_disc
-from pathlib import Path
+# # Using this best model, we can now produce NIfTI files for model outputs 
+# # using a provided data directory
 
-# infer participant home folder
-home = str(Path.home())
+# model_outputs_to_disc(data_path=data_path, 
+#                       validation_csv=validation_csv_filename,
+#                       output_path=outputs_path, 
+#                       native_model_path=final_model_path,
+#                       outputtag='',
+#                       device=device)
 
-# you will need to specify the correct experiment folder and the parent directory for
-# the data you want to run inference over (assumed to be the experiment that just completed)
+# time_end = time.time()
 
-#checkpoint_folder='experiment_1'
-#data_path = </PATH/TO/CHALLENGE_VALIDATION_DATA>
-data_path = '/home/wang_yuan/fets2022/Data/ValidationData'
-validation_csv_filename = 'validation.csv'
+# # show the time elapsed for this session
+# sesseion_time = np.around((time_end-time_start)/3600, 2)
+# print('Session time: {} hrs. That\'s all folks.'.format(sesseion_time))
 
-# you can keep these the same if you wish
-final_model_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'best_model.pkl')
-
-# If the experiment is only run for a single round, use the temp model instead
-if not Path(final_model_path).exists():
-   final_model_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'temp_model.pkl')
-
-outputs_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'model_outputs')
-
-
-# Using this best model, we can now produce NIfTI files for model outputs 
-# using a provided data directory
-
-model_outputs_to_disc(data_path=data_path, 
-                      validation_csv=validation_csv_filename,
-                      output_path=outputs_path, 
-                      native_model_path=final_model_path,
-                      outputtag='',
-                      device=device)
-
-time_end = time.time()
-
-# show the time elapsed for this session
-sesseion_time = np.around((time_end-time_start)/3600, 2)
-print('Session time: {} hrs. That\'s all folks.'.format(sesseion_time))
-
-time_end_stamp = time.strftime('%y-%m-%d-%H-%M-%S')
-print(f'Session completed at {time_end_stamp}')
+# time_end_stamp = time.strftime('%y-%m-%d-%H-%M-%S')
+# print(f'Session completed at {time_end_stamp}')

@@ -19,35 +19,35 @@ import argparse
 def argparser():
     parser = argparse.ArgumentParser(description='FedAvg benchmark')
     parser.add_argument('--checkpoint_folder', type=str, default='experiment_1', help='enter the name of checkpoint folder')
-    return  parser
+    return parser.parse_args()
 
-args= argparser()
+if __name__ == '__main__':  
 
-device='cuda'
+    args= argparser()
+    device='cuda'
 
-# infer participant home folder
-home = str(Path.home())
+    # infer participant home folder
+    home = str(Path.home())
 
-# you will need to specify the correct experiment folder and the parent directory for
-# the data you want to run inference over
-# checkpoint_folder='experiment_1'
-checkpoint_folder = args.checkpoint_folder
-#data_path = </PATH/TO/CHALLENGE_VALIDATION_DATA>
-data_path = '/home/wang_yuan/fets2022/Data/ValidationData'
+    # you will need to specify the correct experiment folder and the parent directory for
+    # the data you want to run inference over
+    # checkpoint_folder='experiment_1'
+    checkpoint_folder = args.checkpoint_folder
+    
+    #data_path = </PATH/TO/CHALLENGE_VALIDATION_DATA>
+    data_path = '/home/wang_yuan/fets2022/Data/ValidationData'
 
-# you can keep these the same if you wish
-best_model_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'best_model.pkl')
-outputs_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'model_outputs')
+    # you can keep these the same if you wish
+    best_model_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'best_model.pkl')
+    outputs_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'model_outputs')
+    validation_csv_filename='validation.csv'
 
-validation_csv_filename='validation.csv'
+    # Using this best model, we can now produce NIfTI files for model outputs 
+    # using a provided data directory
 
-
-# Using this best model, we can now produce NIfTI files for model outputs 
-# using a provided data directory
-
-model_outputs_to_disc(data_path=data_path, 
-                      validation_csv=validation_csv_filename,
-                      output_path=outputs_path, 
-                      native_model_path=best_model_path,
-                      outputtag='',
-                      device=device)
+    model_outputs_to_disc(data_path=data_path, 
+                        validation_csv=validation_csv_filename,
+                        output_path=outputs_path, 
+                        native_model_path=best_model_path,
+                        outputtag='',
+                        device=device)

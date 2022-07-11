@@ -234,6 +234,20 @@ def wy_select_col_with_more_data_subset_2(collaborators,
     
     return training_collaborators
 
+def select_top6_cols_p2(collaborators,
+                    db_iterator,
+                    fl_round,
+                    collaborators_chosen_each_round,
+                    collaborator_times_per_round):
+    """ this function randomly select a subset of collaborators from the hand-picked list of collaborators with more than 10 data samples
+        the random selection using the probabilities which are normalized number of training samples 
+    """
+    
+    # this is a list of ids of the 5 collaborators that have more than 100 data samples, in partition_2
+    training_collaborators = ['1', '2', '3', '24', '25', '26']
+    
+    return training_collaborators
+
 ##############################################
 # Custom hyperparameters for training
 ###############################################
@@ -265,7 +279,31 @@ def constant_hyper_parameters(collaborators,
     learning_rate = 5e-5
     return (learning_rate, epochs_per_round, batches_per_round)
 
-
+def lr_schedular(collaborators,
+                db_iterator,
+                fl_round,
+                collaborators_chosen_each_round,
+                collaborator_times_per_round):
+    """Set the training hyper-parameters for the round.
+    
+    Args:
+        collaborators: list of strings of collaborator names
+        db_iterator: iterator over history of all tensors.
+            Columns: ['tensor_name', 'round', 'tags', 'nparray']
+        fl_round: round number
+        collaborators_chosen_each_round: a dictionary of {round: list of collaborators}. Each list indicates which collaborators trained in that given round.
+        collaborator_times_per_round: a dictionary of {round: {collaborator: total_time_taken_in_round}}.  
+    Returns:
+        tuple of (learning_rate, epochs_per_round, batches_per_round). One of epochs_per_round and batches_per_round must be None.
+    """
+    epochs_per_round = 1.0
+    batches_per_round = None
+    init_learning_rate = 5e-5
+    if fl_round<int(10):
+        learning_rate = init_learning_rate # for the first 10 rounds, use default value 
+    else:
+        learning_rate = 0.5 * init_learning_rate
+    return (learning_rate, epochs_per_round, batches_per_round)
 
 ##########################################################
 # # Custom Aggregation Functions - WY's trials
@@ -1348,8 +1386,10 @@ aggregation_function = wy_agg_func_val # plain
 
 # training col selection strategy
 choose_training_collaborators = all_collaborators_train
+# choose_training_collaborators = select_top6_cols_p2
 
 # hyper param.
+# training_hyper_parameters_for_round = constant_hyper_parameters
 training_hyper_parameters_for_round = constant_hyper_parameters
 
 # As mentioned in the 'Custom Aggregation Functions' section (above), six 
@@ -1361,9 +1401,9 @@ include_validation_with_hausdorff=False
 
 # We encourage participants to experiment with partitioning_1 and partitioning_2, as well as to create
 # other partitionings to test your changes for generalization to multiple partitionings.
-institution_split_csv_filename = 'small_split.csv'
+# institution_split_csv_filename = 'small_split.csv'
 # institution_split_csv_filename = 'partitioning_1.csv'
-# institution_split_csv_filename = 'partitioning_2.csv'
+institution_split_csv_filename = 'partitioning_2.csv'
 # institution_split_csv_filename = 'partitioning_2_top5_clients.csv'
 # institution_split_csv_filename = 'partitioning_2_rand_pick_5.csv'
 
@@ -1380,7 +1420,7 @@ device = 'cuda'
 
 # you'll want to increase this most likely. You can set it as high as you like, 
 # however, the experiment will exit once the simulated time exceeds one week. 
-rounds_to_train = 10
+rounds_to_train = 20
 
 # (bool) Determines whether checkpoints should be saved during the experiment. 
 # The checkpoints can grow quite large (5-10GB) so only the latest will be saved when this parameter is enabled
@@ -1412,6 +1452,13 @@ scores_dataframe, checkpoint_folder = run_challenge_experiment(
 
 
 scores_dataframe
+print(scores_dataframe)
+
+from pathlib import Path
+# infer participant home folder
+home = str(Path.home())
+scores_dataframe_file = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'scores_df.csv')
+scores_dataframe.to_csv(scores_dataframe_file)
 
 
 # ## Produce NIfTI files for best model outputs on the validation set
@@ -1423,39 +1470,39 @@ scores_dataframe
 # experiment (look for the log entry: "Created experiment folder experiment_##..." above).
 
 
-from fets_challenge import model_outputs_to_disc
-from pathlib import Path
+# from fets_challenge import model_outputs_to_disc
+# from pathlib import Path
 
-# infer participant home folder
-home = str(Path.home())
+# # infer participant home folder
+# home = str(Path.home())
 
-# you will need to specify the correct experiment folder and the parent directory for
-# the data you want to run inference over (assumed to be the experiment that just completed)
+# # you will need to specify the correct experiment folder and the parent directory for
+# # the data you want to run inference over (assumed to be the experiment that just completed)
 
-#checkpoint_folder='experiment_1'
-#data_path = </PATH/TO/CHALLENGE_VALIDATION_DATA>
-data_path = '/home/wang_yuan/fets2022/Data/ValidationData'
-validation_csv_filename = 'validation.csv'
+# #checkpoint_folder='experiment_1'
+# #data_path = </PATH/TO/CHALLENGE_VALIDATION_DATA>
+# data_path = '/home/wang_yuan/fets2022/Data/ValidationData'
+# validation_csv_filename = 'validation.csv'
 
-# you can keep these the same if you wish
-final_model_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'best_model.pkl')
+# # you can keep these the same if you wish
+# final_model_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'best_model.pkl')
 
-# If the experiment is only run for a single round, use the temp model instead
-if not Path(final_model_path).exists():
-   final_model_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'temp_model.pkl')
+# # If the experiment is only run for a single round, use the temp model instead
+# if not Path(final_model_path).exists():
+#    final_model_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'temp_model.pkl')
 
-outputs_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'model_outputs')
+# outputs_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'model_outputs')
 
 
-# Using this best model, we can now produce NIfTI files for model outputs 
-# using a provided data directory
+# # Using this best model, we can now produce NIfTI files for model outputs 
+# # using a provided data directory
 
-model_outputs_to_disc(data_path=data_path, 
-                      validation_csv=validation_csv_filename,
-                      output_path=outputs_path, 
-                      native_model_path=final_model_path,
-                      outputtag='',
-                      device=device)
+# model_outputs_to_disc(data_path=data_path, 
+#                       validation_csv=validation_csv_filename,
+#                       output_path=outputs_path, 
+#                       native_model_path=final_model_path,
+#                       outputtag='',
+#                       device=device)
 
 time_end = time.time()
 
