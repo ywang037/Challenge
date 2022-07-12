@@ -15,32 +15,22 @@
 from math import floor
 import os
 import numpy as np
-
+import random
+import torch
 from fets_challenge import run_challenge_experiment
-
-# the following are customized add-on lib
-import time
-
-# # Adding custom functionality to the experiment
-# Within this notebook there are **four** functional areas that you can adjust to improve upon the challenge reference code:
-# 
-# - [Custom aggregation logic](#Custom-Aggregation-Functions)
-# - [Selection of training hyperparameters by round](#Custom-hyperparameters-for-training)
-# - [Collaborator training selection by round](#Custom-Collaborator-Training-Selection)
-# 
-
-# ## Experiment logger for your functions
-# The following import allows you to use the same logger used by the experiment framework. This lets you include logging in your functions.
-
 from fets_challenge.experiment import logger
 from pyparsing import col
 from sklearn.metrics import log_loss
+from pathlib import Path
+
+# the following are customized add-on lib
+import time
+import argparse
 
 # # Custom Collaborator Training Selection
 # By default, all collaborators will be selected for training each round, 
 # but you can easily add your own logic to select a different set of collaborators based on custom criteria. 
 # An example is provided below for selecting a single collaborator on odd rounds that had the fastest training time (`one_collaborator_on_odd_rounds`).
-
 
 # a very simple function. Everyone trains every round.
 def all_collaborators_train(collaborators,
@@ -151,6 +141,29 @@ def select_top6_cols_p2(collaborators,
     
     # this is a list of ids of the 5 collaborators that have more than 100 data samples, in partition_2
     training_collaborators = ['1', '2', '3', '24', '25', '26']
+    
+    return training_collaborators
+
+def select_top_cols_for_earlier_rounds(collaborators,
+                                        db_iterator,
+                                        fl_round,
+                                        collaborators_chosen_each_round,
+                                        collaborator_times_per_round):
+    """ for ther first few rounds,
+        this function randomly select a subset of collaborators from the hand-picked list of collaborators with more than 10 data samples,
+        the random selection using the probabilities which are normalized number of training samples,
+        then for the later rounds, can include all cols or randomly select from all of the col.s
+    """
+    
+    # this is a list of ids of the 5 collaborators that have more than 100 data samples, in partition_2
+    top_cols = ['1', '2', '3', '24', '25', '26']
+    round_to_switch = 10
+
+    if fl_round < round_to_switch:
+        training_collaborators = top_cols
+    else:
+        training_collaborators = collaborators
+        # training_collaborators = random_sel_more_data_p2(collaborators,db_iterator,fl_round,collaborators_chosen_each_round,collaborator_times_per_round)
     
     return training_collaborators
 
@@ -1136,218 +1149,129 @@ def FedAvgM_Selection(local_tensors,
 
                 return new_tensor_weight
 
+def argparser():
+    parser = argparse.ArgumentParser(description='FeTS Challenge experiment run')
+    parser.add_argument('--seed', type=int, default=0, help='seed for controliing randomness')
+    parser.add_argument('--rounds', type=int, default=10, help='number of FL rounds to do')
+    return parser.parse_args()
 
-def fedNova_simplified(local_tensors,
-                        tensor_db,
-                        tensor_name,
-                        fl_round,
-                        collaborators_chosen_each_round,
-                        collaborator_times_per_round):
+if __name__ == '__main__':  
     
-    aggregator_lr = 1.0
+    args = argparser()
+    
+    # freeze the randomness
+    seed = args.seed
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
-    if fl_round == 0:
-        # Just apply FedAvg
-        
-        tensor_values = [t.tensor for t in local_tensors]
-        weight_values = [t.weight for t in local_tensors]               
-        new_tensor_weight =  np.average(tensor_values, weights=weight_values, axis=0)        
-                       
-        return new_tensor_weight  
-    else:
-        # Calculate aggregator's last value
-        previous_tensor_value = None
-        for _, record in tensor_db.iterrows():
-            if (record['round'] == (fl_round) 
-                and record["tensor_name"] == tensor_name
-                and record["tags"] == ("aggregated",)):
-                previous_tensor_value = record['nparray']
-                break
-                
-        deltas = [previous_tensor_value - t.tensor for t in local_tensors]
-#         weight_values = [t.weight for t in local_tensors]
-        grad_nova =  np.average(deltas, axis=0)
-        
-        new_tensor_weight = previous_tensor_value - aggregator_lr *grad_nova
-        
-        return new_tensor_weight
+    # # Running the Experiment
+    # 
+    # ```run_challenge_experiment``` is singular interface where your custom methods can be passed.
+    # 
+    # - ```aggregation_function```, ```choose_training_collaborators```, and ```training_hyper_parameters_for_round``` correspond to the [this list](#Custom-hyperparameters-for-training) of configurable functions 
+    # described within this notebook.
+    # - ```institution_split_csv_filename``` : Describes how the data should be split between all collaborators. Extended documentation about configuring the splits in the ```institution_split_csv_filename``` parameter can be found in the [README.md](https://github.com/FETS-AI/Challenge/blob/main/Task_1/README.md). 
+    # - ```db_store_rounds``` : This parameter determines how long metrics and weights should be stored by the aggregator before being deleted. Providing a value of `-1` will result in all historical data being retained, but memory usage will likely increase.
+    # - ```rounds_to_train``` : Defines how many rounds will occur in the experiment
+    # - ```device``` : Which device to use for training and validation
 
-
-# # Running the Experiment
-# 
-# ```run_challenge_experiment``` is singular interface where your custom methods can be passed.
-# 
-# - ```aggregation_function```, ```choose_training_collaborators```, and ```training_hyper_parameters_for_round``` correspond to the [this list](#Custom-hyperparameters-for-training) of configurable functions 
-# described within this notebook.
-# - ```institution_split_csv_filename``` : Describes how the data should be split between all collaborators. Extended documentation about configuring the splits in the ```institution_split_csv_filename``` parameter can be found in the [README.md](https://github.com/FETS-AI/Challenge/blob/main/Task_1/README.md). 
-# - ```db_store_rounds``` : This parameter determines how long metrics and weights should be stored by the aggregator before being deleted. Providing a value of `-1` will result in all historical data being retained, but memory usage will likely increase.
-# - ```rounds_to_train``` : Defines how many rounds will occur in the experiment
-# - ```device``` : Which device to use for training and validation
-
-# ## Setting up the experiment
-# Now that we've defined our custom functions, the last thing to do is to configure the experiment. The following cell shows the various settings you can change in your experiment.
-# 
-# Note that ```rounds_to_train``` can be set as high as you want. However, the experiment will exit once the simulated time value exceeds 1 week of simulated time, or if the specified number of rounds has completed.
+    # ## Setting up the experiment
+    # Now that we've defined our custom functions, the last thing to do is to configure the experiment. The following cell shows the various settings you can change in your experiment.
+    # 
+    # Note that ```rounds_to_train``` can be set as high as you want. However, the experiment will exit once the simulated time value exceeds 1 week of simulated time, or if the specified number of rounds has completed.
 
 
-# change any of these you wish to your custom functions. You may leave defaults if you wish.
-# aggregation_function = weighted_average_aggregation
-# aggregation_function = FedAvgM_Selection
-# aggregation_function = fedNova_simplified
-# aggregation_function = central_train_sim
+    # change any of these you wish to your custom functions. You may leave defaults if you wish.
+    # aggregation_function = weighted_average_aggregation
+    # aggregation_function = FedAvgM_Selection
 
-# # choose from the following list for customized aggregation function
-# # dist-based methods
-# aggregation_function = wy_agg_func_dist # plain
-# aggregation_function = wy_agg_func_dist_adv # adv
-# aggregation_function = wy_agg_func_dist_adv2 # adv2
+    # customized aggregation function
+    aggregation_function = wy_agg_func_val_adv # adv
 
-# val loss based methods
-# aggregation_function = wy_agg_func_val # plain
-aggregation_function = wy_agg_func_val_adv # adv
-# aggregation_function = wy_agg_func_val_adv2 # adv2
+    # training col selection strategy
+    # choose_training_collaborators = all_collaborators_train
+    choose_training_collaborators = select_top6_cols_p2
+    # choose_training_collaborators = random_sel_more_data_p2
+    # choose_training_collaborators = random_sel_more_data_subset_p2
 
-# # delta val loss based methods
-# aggregation_function = wy_agg_func_val_delta # plain
-# aggregation_function = wy_agg_func_val_delta_adv # adv
-# aggregation_function = wy_agg_func_val_delta_adv2 # adv2
+    # hyper param.
+    # training_hyper_parameters_for_round = constant_hyper_parameters
+    training_hyper_parameters_for_round = lr_schedular_3
 
-# # val & dist hybrid methods
-# aggregation_function = wy_agg_func_hybrid_val # basic
-# aggregation_function = wy_agg_func_hybrid_val_adv # adv
-# aggregation_function = wy_agg_func_hybrid_val_adv2 # adv2
+    # As mentioned in the 'Custom Aggregation Functions' section (above), six 
+    # perfomance evaluation metrics are included by default for validation outputs in addition 
+    # to those you specify immediately above. Changing the below value to False will change 
+    # this fact, excluding the three hausdorff measurements. As hausdorff distance is 
+    # expensive to compute, excluding them will speed up your experiments.
+    include_validation_with_hausdorff=False
 
-# # val & dist hybrid methods
-# aggregation_function = wy_agg_func_hybrid_val_delta # basic 
-# aggregation_function = wy_agg_func_hybrid_val_delta_adv # adv
-# aggregation_function = wy_agg_func_hybrid_val_delta_adv2 # adv2
+    # We encourage participants to experiment with partitioning_1 and partitioning_2, as well as to create
+    # other partitionings to test your changes for generalization to multiple partitionings.
+    # institution_split_csv_filename = 'small_split.csv'
+    # institution_split_csv_filename = 'partitioning_1.csv'
+    institution_split_csv_filename = 'partitioning_2.csv'
 
-# training col selection strategy
-# choose_training_collaborators = all_collaborators_train
-# choose_training_collaborators = select_top6_cols_p2
-# choose_training_collaborators = random_sel_more_data_p2
-choose_training_collaborators = random_sel_more_data_subset_p2
+    # change this to point to the parent directory of the data
+    brats_training_data_parent_dir = '/home/wang_yuan/fets2022/Data/TrainingData'
 
-# hyper param.
-training_hyper_parameters_for_round = constant_hyper_parameters
-training_hyper_parameters_for_round = lr_schedular_2
+    # increase this if you need a longer history for your algorithms
+    # decrease this if you need to reduce system RAM consumption
+    db_store_rounds = 1
 
-# As mentioned in the 'Custom Aggregation Functions' section (above), six 
-# perfomance evaluation metrics are included by default for validation outputs in addition 
-# to those you specify immediately above. Changing the below value to False will change 
-# this fact, excluding the three hausdorff measurements. As hausdorff distance is 
-# expensive to compute, excluding them will speed up your experiments.
-include_validation_with_hausdorff=False
+    # this is passed to PyTorch, so set it accordingly for your system
+    device = 'cuda'
 
-# We encourage participants to experiment with partitioning_1 and partitioning_2, as well as to create
-# other partitionings to test your changes for generalization to multiple partitionings.
-# institution_split_csv_filename = 'small_split.csv'
-# institution_split_csv_filename = 'partitioning_1.csv'
-institution_split_csv_filename = 'partitioning_2.csv'
-# institution_split_csv_filename = 'partitioning_2_top5_clients.csv'
-# institution_split_csv_filename = 'partitioning_2_rand_pick_5.csv'
+    # you'll want to increase this most likely. You can set it as high as you like, 
+    # however, the experiment will exit once the simulated time exceeds one week. 
+    rounds_to_train = 15
+
+    # (bool) Determines whether checkpoints should be saved during the experiment. 
+    # The checkpoints can grow quite large (5-10GB) so only the latest will be saved when this parameter is enabled
+    save_checkpoints = True
+
+    # path to previous checkpoint folder for experiment that was stopped before completion. 
+    # Checkpoints are stored in ~/.local/workspace/checkpoint, and you should provide the experiment directory 
+    # relative to this path (i.e. 'experiment_1'). Please note that if you restore from a checkpoint, 
+    # and save checkpoint is set to True, then the checkpoint you restore from will be subsequently overwritten.
+    # restore_from_checkpoint_folder = 'experiment_1'
+    restore_from_checkpoint_folder = None
 
 
-# change this to point to the parent directory of the data
-brats_training_data_parent_dir = '/home/wang_yuan/fets2022/Data/TrainingData'
+    time_start = time.time()
 
-# increase this if you need a longer history for your algorithms
-# decrease this if you need to reduce system RAM consumption
-db_store_rounds = 1
-
-# this is passed to PyTorch, so set it accordingly for your system
-device = 'cuda'
-
-# you'll want to increase this most likely. You can set it as high as you like, 
-# however, the experiment will exit once the simulated time exceeds one week. 
-rounds_to_train = 10
-
-# (bool) Determines whether checkpoints should be saved during the experiment. 
-# The checkpoints can grow quite large (5-10GB) so only the latest will be saved when this parameter is enabled
-save_checkpoints = True
-
-# path to previous checkpoint folder for experiment that was stopped before completion. 
-# Checkpoints are stored in ~/.local/workspace/checkpoint, and you should provide the experiment directory 
-# relative to this path (i.e. 'experiment_1'). Please note that if you restore from a checkpoint, 
-# and save checkpoint is set to True, then the checkpoint you restore from will be subsequently overwritten.
-# restore_from_checkpoint_folder = 'experiment_1'
-restore_from_checkpoint_folder = None
+    # the scores are returned in a Pandas dataframe
+    scores_dataframe, checkpoint_folder = run_challenge_experiment(
+        aggregation_function=aggregation_function,
+        choose_training_collaborators=choose_training_collaborators,
+        training_hyper_parameters_for_round=training_hyper_parameters_for_round,
+        include_validation_with_hausdorff=include_validation_with_hausdorff,
+        institution_split_csv_filename=institution_split_csv_filename,
+        brats_training_data_parent_dir=brats_training_data_parent_dir,
+        db_store_rounds=db_store_rounds,
+        rounds_to_train=rounds_to_train,
+        device=device,
+        save_checkpoints=save_checkpoints,
+        restore_from_checkpoint_folder = restore_from_checkpoint_folder)
 
 
-time_start = time.time()
+    scores_dataframe
+    print(scores_dataframe)
 
-# the scores are returned in a Pandas dataframe
-scores_dataframe, checkpoint_folder = run_challenge_experiment(
-    aggregation_function=aggregation_function,
-    choose_training_collaborators=choose_training_collaborators,
-    training_hyper_parameters_for_round=training_hyper_parameters_for_round,
-    include_validation_with_hausdorff=include_validation_with_hausdorff,
-    institution_split_csv_filename=institution_split_csv_filename,
-    brats_training_data_parent_dir=brats_training_data_parent_dir,
-    db_store_rounds=db_store_rounds,
-    rounds_to_train=rounds_to_train,
-    device=device,
-    save_checkpoints=save_checkpoints,
-    restore_from_checkpoint_folder = restore_from_checkpoint_folder)
+    from pathlib import Path
+    # infer participant home folder
+    home = str(Path.home())
+    scores_dataframe_file = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'scores_df.csv')
+    scores_dataframe.to_csv(scores_dataframe_file)
 
+    time_end = time.time()
 
-scores_dataframe
-print(scores_dataframe)
+    # show the time elapsed for this session
+    sesseion_time = np.around((time_end-time_start)/3600, 2)
+    print('Session time: {} hrs. That\'s all folks.'.format(sesseion_time))
 
-from pathlib import Path
-# infer participant home folder
-home = str(Path.home())
-scores_dataframe_file = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'scores_df.csv')
-scores_dataframe.to_csv(scores_dataframe_file)
-
-# ## Produce NIfTI files for best model outputs on the validation set
-# Now we will produce model outputs to submit to the leader board.
-# 
-# At the end of every experiment, the best model (according to average ET, TC, WT DICE) 
-# is saved to disk at: ~/.local/workspace/checkpoint/\<checkpoint folder\>/best_model.pkl,
-# where \<checkpoint folder\> is the one printed to stdout during the start of the 
-# experiment (look for the log entry: "Created experiment folder experiment_##..." above).
-
-
-# from fets_challenge import model_outputs_to_disc
-# from pathlib import Path
-
-# # infer participant home folder
-# home = str(Path.home())
-
-# # you will need to specify the correct experiment folder and the parent directory for
-# # the data you want to run inference over (assumed to be the experiment that just completed)
-
-# #checkpoint_folder='experiment_1'
-# #data_path = </PATH/TO/CHALLENGE_VALIDATION_DATA>
-# data_path = '/home/wang_yuan/fets2022/Data/ValidationData'
-# validation_csv_filename = 'validation.csv'
-
-# # you can keep these the same if you wish
-# final_model_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'best_model.pkl')
-
-# # If the experiment is only run for a single round, use the temp model instead
-# if not Path(final_model_path).exists():
-#    final_model_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'temp_model.pkl')
-
-# outputs_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'model_outputs')
-
-
-# # Using this best model, we can now produce NIfTI files for model outputs 
-# # using a provided data directory
-
-# model_outputs_to_disc(data_path=data_path, 
-#                       validation_csv=validation_csv_filename,
-#                       output_path=outputs_path, 
-#                       native_model_path=final_model_path,
-#                       outputtag='',
-#                       device=device)
-
-time_end = time.time()
-
-# show the time elapsed for this session
-sesseion_time = np.around((time_end-time_start)/3600, 2)
-print('Session time: {} hrs. That\'s all folks.'.format(sesseion_time))
-
-time_end_stamp = time.strftime('%y-%m-%d-%H-%M-%S')
-print(f'Session completed at {time_end_stamp}')
+    time_end_stamp = time.strftime('%y-%m-%d-%H-%M-%S')
+    print(f'Session completed at {time_end_stamp}')
