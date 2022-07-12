@@ -275,6 +275,29 @@ def select_top6_cols_p2(collaborators,
     
     return training_collaborators
 
+def select_top_cols_for_earlier_rounds(collaborators,
+                                        db_iterator,
+                                        fl_round,
+                                        collaborators_chosen_each_round,
+                                        collaborator_times_per_round):
+    """ for ther first few rounds,
+        this function randomly select a subset of collaborators from the hand-picked list of collaborators with more than 10 data samples,
+        the random selection using the probabilities which are normalized number of training samples,
+        then for the later rounds, can include all cols or randomly select from all of the col.s
+    """
+    
+    # this is a list of ids of the 5 collaborators that have more than 100 data samples, in partition_2
+    top_cols = ['1', '2', '3', '24', '25', '26']
+    round_to_switch = 10
+
+    if fl_round < round_to_switch:
+        training_collaborators = top_cols
+    else:
+        training_collaborators = collaborators
+        # training_collaborators = random_sel_more_data_p2(collaborators,db_iterator,fl_round,collaborators_chosen_each_round,collaborator_times_per_round)
+    
+    return training_collaborators
+
 ##############################################
 # Custom hyperparameters for training
 ###############################################
