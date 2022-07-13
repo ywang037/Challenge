@@ -51,119 +51,19 @@ def all_collaborators_train(collaborators,
     return collaborators
 
 ##########################################################
-# # Custom selection functions - WY's trials
+# # Custom selection functions 
 ##########################################################
-def wy_select_col_with_more_data_1(collaborators,
-                                    db_iterator,
-                                    fl_round,
-                                    collaborators_chosen_each_round,
-                                    collaborator_times_per_round):
-    # this is a list of ids for collaborator that has at least 10 data samples, hand-picked
-    training_collaborators = ['1', '3', '4', '5', '6', '7', '11', '12', '13', '15', '16', '18', '20', '21']
-    
-    return training_collaborators
-
-def wy_select_col_with_more_data_2(collaborators,
-                                    db_iterator,
-                                    fl_round,
-                                    collaborators_chosen_each_round,
-                                    collaborator_times_per_round):
-    # this is a list of ids for collaborator that has at least 10 data samples, hand-picked
-    training_collaborators = preserved_col_id = ['1', '2', '3', '5', '6', '7', '8', '9', '10', '11', '15', '16', '17', '18', '19', '21', '22', '24', '25', '26', '28', '29', '30', '31'] # for partition_2
-    return training_collaborators
-
-def random_sel_more_data_subset_p2(collaborators,
-                                    db_iterator,
-                                    fl_round,
-                                    collaborators_chosen_each_round,
-                                    collaborator_times_per_round):
-    """ this function randomly select training cols. from the hand-picked subset of all cols. with more than 10 data samples
-        the random selection using the probabilities which are normalized number of training samples 
-    """
-    
-    # this is a list of ids for collaborator that has at least 10 data samples, hand-picked
-    preserved_col_id = ['1', '2', '3', '5', '6', '7', '8', '9', '10', '11', '15', '16', '17', '18', '19', '21', '22', '24', '25', '26', '28', '29', '30', '31']
-    
-    # hand-calculated problabilities, for partition_2
-    prob_sel = [
-        0.14237856, 0.14237856, 0.14321608, 0.01256281, 0.01340034, 0.01256281,
-        0.01340034, 0.01842546, 0.02847571, 0.01005025, 0.01172529, 0.00921273,
-        0.01005025, 0.00921273, 0.01005025, 0.01088777, 0.02512563, 0.10636516,
-        0.10636516, 0.10720268, 0.02763819, 0.01005025, 0.00921273, 0.01005025
-        ]
-    prob_sel = np.array(prob_sel, dtype=np.float32) # make it a np array
-
-    rng = np.random.default_rng()
-    num_final_pick = 8 # 8 out of 33 approximately 25% ratio, 6 out of 33 approx. 20% ratio
-    training_collaborators = rng.choice(preserved_col_id, num_final_pick, replace=False, p=prob_sel)
-    
-    return training_collaborators
-
-def random_sel_more_data_p2(collaborators,
-                            db_iterator,
-                            fl_round,
-                            collaborators_chosen_each_round,
-                            collaborator_times_per_round):
-    """ this function randomly selects training cols. from partition_2, 
-        using the probabilities calculated as the normalized number of data samples
-        so cols. have more data are more likely to be selected.
-    """
-    col_ids = [
-        '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 
-        '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', 
-        '21', '22', '23', '24', '25', '26', '27', '28', '29', '30',
-        '31', '32', '33'
-        ]
-    prob_sel = [
-        0.13589129, 0.13589129, 0.13669065, 0.00479616, 0.01199041, 0.01278977,
-        0.01199041, 0.01278977, 0.01758593, 0.02717826, 0.00959233, 0.00639488,
-        0.00319744, 0.00639488, 0.01119105, 0.00879297, 0.00959233, 0.00879297,
-        0.00959233, 0.00479616, 0.01039169, 0.02398082, 0.00719424, 0.10151878,
-        0.10151878, 0.10231815, 0.00319744, 0.0263789,  0.00959233, 0.00879297,
-        0.00959233, 0.00559552, 0.0039968
-        ]
-    prob_sel = np.array(prob_sel, dtype=np.float32) # make it a np array
-
-    rng = np.random.default_rng()
-    num_final_pick = 8 # 8 out of 33 approximately 25% ratio, 6 out of 33 approx. 20% ratio
-    training_collaborators = rng.choice(col_ids, num_final_pick, replace=False, p=prob_sel)
-    
-    return training_collaborators
-
 def select_top6_cols_p2(collaborators,
                     db_iterator,
                     fl_round,
                     collaborators_chosen_each_round,
                     collaborator_times_per_round):
-    """ this function randomly select a subset of collaborators from the hand-picked list of collaborators with more than 10 data samples
-        the random selection using the probabilities which are normalized number of training samples 
+    """ this function selects 6 cols from the hand-picked list of cols who have more than 10 data samples
+        the selection is fixed throughout the FL rounds
     """
     
-    # this is a list of ids of the 5 collaborators that have more than 100 data samples, in partition_2
+    # this is a list of ids of the 6 collaborators that have more than 100 data samples, in partition_2
     training_collaborators = ['1', '2', '3', '24', '25', '26']
-    
-    return training_collaborators
-
-def select_top_cols_for_earlier_rounds(collaborators,
-                                        db_iterator,
-                                        fl_round,
-                                        collaborators_chosen_each_round,
-                                        collaborator_times_per_round):
-    """ for ther first few rounds,
-        this function randomly select a subset of collaborators from the hand-picked list of collaborators with more than 10 data samples,
-        the random selection using the probabilities which are normalized number of training samples,
-        then for the later rounds, can include all cols or randomly select from all of the col.s
-    """
-    
-    # this is a list of ids of the 5 collaborators that have more than 100 data samples, in partition_2
-    top_cols = ['1', '2', '3', '24', '25', '26']
-    round_to_switch = 10
-
-    if fl_round < round_to_switch:
-        training_collaborators = top_cols
-    else:
-        training_collaborators = collaborators
-        # training_collaborators = random_sel_more_data_p2(collaborators,db_iterator,fl_round,collaborators_chosen_each_round,collaborator_times_per_round)
     
     return training_collaborators
 
@@ -559,13 +459,13 @@ if __name__ == '__main__':
 
     # training col selection strategy
     # choose_training_collaborators = all_collaborators_train
-    # choose_training_collaborators = select_top6_cols_p2
+    choose_training_collaborators = select_top6_cols_p2
     # choose_training_collaborators = random_sel_more_data_p2
-    choose_training_collaborators = random_sel_more_data_subset_p2
+    # choose_training_collaborators = random_sel_more_data_subset_p2
 
     # hyper param.
-    # training_hyper_parameters_for_round = constant_hyper_parameters
-    training_hyper_parameters_for_round = lr_schedular_3
+    training_hyper_parameters_for_round = constant_hyper_parameters
+    # training_hyper_parameters_for_round = lr_schedular_3
     
 
     # As mentioned in the 'Custom Aggregation Functions' section (above), six 
