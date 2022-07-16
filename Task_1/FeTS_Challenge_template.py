@@ -596,7 +596,7 @@ include_validation_with_hausdorff=False
 institution_split_csv_filename = 'small_split.csv'
 
 # change this to point to the parent directory of the data
-brats_training_data_parent_dir = '/home/wang_yuan/fets2022/Data/TrainingData'
+brats_training_data_parent_dir = '/raid/datasets/FeTS22/MICCAI_FeTS2022_TrainingData' # pls change do the actual data path
 
 # increase this if you need a longer history for your algorithms
 # decrease this if you need to reduce system RAM consumption

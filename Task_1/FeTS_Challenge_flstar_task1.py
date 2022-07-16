@@ -406,7 +406,7 @@ def get_val_loss_delta_score(local_tensors,tensor_db,fl_round):
 
     for t in local_tensors:
         col = t.col_name
-        delta_loss = val_loss_local[col] - val_loss_agg[col]
+        delta_loss = val_loss_agg[col] - val_loss_local[col]
         val_loss_delta[col] = max(delta_loss,0) # local validation is supposed to be done after agg model validation
 
     sum=0
@@ -857,6 +857,8 @@ def argparser():
     parser.add_argument('--method', type=str, default='fedavg', help='speicify the aggregation function')
     parser.add_argument('--seed', type=int, default=0, help='seed for controliing randomness')
     parser.add_argument('--rounds', type=int, default=10, help='number of FL rounds to do')
+    parser.add_argument('--restore', type=str, default=None, help='specify the restore folder')
+    parser.add_argument('--lr_schedule',type=str, default='const', help='specify the lr schedule')
     return parser.parse_args()
 
 if __name__ == '__main__':  
@@ -915,8 +917,14 @@ if __name__ == '__main__':
     # choose_training_collaborators = random_sel_more_data_subset_p2
 
     # hyper param.
-    training_hyper_parameters_for_round = constant_hyper_parameters
-    # training_hyper_parameters_for_round = lr_schedular_3
+    if args.lr_schedule == 'const':
+        training_hyper_parameters_for_round = constant_hyper_parameters
+    elif args.lr_schedule == 'schedular_1':
+        training_hyper_parameters_for_round = lr_schedular_1
+    elif args.lr_schedule == 'schedular_2':
+        training_hyper_parameters_for_round = lr_schedular_2
+    elif args.lr_schedule == 'schedular_3':
+        training_hyper_parameters_for_round = lr_schedular_3
 
     # As mentioned in the 'Custom Aggregation Functions' section (above), six 
     # perfomance evaluation metrics are included by default for validation outputs in addition 
@@ -955,7 +963,8 @@ if __name__ == '__main__':
     # relative to this path (i.e. 'experiment_1'). Please note that if you restore from a checkpoint, 
     # and save checkpoint is set to True, then the checkpoint you restore from will be subsequently overwritten.
     # restore_from_checkpoint_folder = 'experiment_1'
-    restore_from_checkpoint_folder = None
+    # restore_from_checkpoint_folder = None
+    restore_from_checkpoint_folder = args.restore
 
 
     time_start = time.time()

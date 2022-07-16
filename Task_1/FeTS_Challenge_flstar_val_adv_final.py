@@ -184,7 +184,7 @@ def lr_schedular_3(collaborators,
     epochs_per_round = 1.0
     batches_per_round = None
     
-    init_learning_rate = 2 * 5e-5 # intial lr is the same as the default value
+    init_learning_rate = 5e-5 # intial lr is the same as the default value
     lr_decay = 0.9
 
     if fl_round == 0:
@@ -418,13 +418,14 @@ def argparser():
     parser = argparse.ArgumentParser(description='FeTS Challenge experiment run')
     parser.add_argument('--seed', type=int, default=0, help='seed for controliing randomness')
     parser.add_argument('--rounds', type=int, default=10, help='number of FL rounds to do')
+    parser.add_argument('--restore', type=str, default=None, help='specify the restore folder')
     return parser.parse_args()
 
 if __name__ == '__main__':  
     
     args = argparser()
     
-    # freeze the randomness
+    # freeze the randomness for reproducibility
     seed = args.seed
     random.seed(seed)
     np.random.seed(seed)
@@ -433,40 +434,26 @@ if __name__ == '__main__':
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    # # Running the Experiment
-    # 
-    # ```run_challenge_experiment``` is singular interface where your custom methods can be passed.
-    # 
-    # - ```aggregation_function```, ```choose_training_collaborators```, and ```training_hyper_parameters_for_round``` correspond to the [this list](#Custom-hyperparameters-for-training) of configurable functions 
-    # described within this notebook.
-    # - ```institution_split_csv_filename``` : Describes how the data should be split between all collaborators. Extended documentation about configuring the splits in the ```institution_split_csv_filename``` parameter can be found in the [README.md](https://github.com/FETS-AI/Challenge/blob/main/Task_1/README.md). 
-    # - ```db_store_rounds``` : This parameter determines how long metrics and weights should be stored by the aggregator before being deleted. Providing a value of `-1` will result in all historical data being retained, but memory usage will likely increase.
-    # - ```rounds_to_train``` : Defines how many rounds will occur in the experiment
-    # - ```device``` : Which device to use for training and validation
-
-    # ## Setting up the experiment
-    # Now that we've defined our custom functions, the last thing to do is to configure the experiment. The following cell shows the various settings you can change in your experiment.
-    # 
-    # Note that ```rounds_to_train``` can be set as high as you want. However, the experiment will exit once the simulated time value exceeds 1 week of simulated time, or if the specified number of rounds has completed.
-
-
-    # change any of these you wish to your custom functions. You may leave defaults if you wish.
+    # some baseline aggregation functions
     # aggregation_function = weighted_average_aggregation
     # aggregation_function = FedAvgM_Selection
 
     # customized aggregation function
-    aggregation_function = wy_agg_func_val_adv # adv
+    aggregation_function = wy_agg_func_val_adv 
 
     # training col selection strategy
     # choose_training_collaborators = all_collaborators_train
     choose_training_collaborators = select_top6_cols_p2
-    # choose_training_collaborators = random_sel_more_data_p2
-    # choose_training_collaborators = random_sel_more_data_subset_p2
 
     # hyper param.
-    training_hyper_parameters_for_round = constant_hyper_parameters
-    # training_hyper_parameters_for_round = lr_schedular_3
-    
+    if args.lr_schedule == 'const':
+        training_hyper_parameters_for_round = constant_hyper_parameters
+    elif args.lr_schedule == 'schedular_1':
+        training_hyper_parameters_for_round = lr_schedular_1
+    elif args.lr_schedule == 'schedular_2':
+        training_hyper_parameters_for_round = lr_schedular_2
+    elif args.lr_schedule == 'schedular_3':
+        training_hyper_parameters_for_round = lr_schedular_3 
 
     # As mentioned in the 'Custom Aggregation Functions' section (above), six 
     # perfomance evaluation metrics are included by default for validation outputs in addition 
