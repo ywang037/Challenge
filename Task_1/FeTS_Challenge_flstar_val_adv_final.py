@@ -419,6 +419,7 @@ def argparser():
     parser.add_argument('--seed', type=int, default=0, help='seed for controliing randomness')
     parser.add_argument('--rounds', type=int, default=10, help='number of FL rounds to do')
     parser.add_argument('--restore', type=str, default=None, help='specify the restore folder')
+    parser.add_argument('--lr_schedule',type=str, default='const', help='specify the lr schedule')
     return parser.parse_args()
 
 if __name__ == '__main__':  
