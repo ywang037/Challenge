@@ -12,6 +12,7 @@
 # - Ilya Trushkin (Intel)
 
 
+from math import floor
 import os
 import numpy as np
 
@@ -32,44 +33,8 @@ import time
 # The following import allows you to use the same logger used by the experiment framework. This lets you include logging in your functions.
 
 from fets_challenge.experiment import logger
-
-
-# # Getting access to historical weights, metrics, and more
-# The **db_iterator** parameter gives full access to all of the tensors and metrics stored by the aggregator. 
-# Participants can access these records to create advanced aggregation methods, hyperparameters for training, 
-# and novel selection logic for which collaborators should participant in a given training round. 
-# See below for details about how data is stored internally and a comprehensive set of examples. 
-# 
-# ## Basic Form
-# Each record yielded by the `db_iterator` contains the following fields:
-# 
-# |                      TensorKey                     |   Tensor  |
-# |:--------------------------------------------------:|:---------:|
-# | 'tensor_name', 'origin', 'round', 'report', 'tags' | 'nparray' |
-# 
-# All records are internally stored as a numpy array: model weights, metrics, as well as hyperparameters. 
-# 
-# Detailed field explanation:
-# - **'tensor_name'** (str): The `'tensor_name'` field corresponds to the model layer name (i.e. `'conv2d'`), 
-#   or the name of the metric that has been reported by a collaborator (i.e. `'accuracy'`). 
-#   The built-in validation functions used for evaluation of the challenge will be given a prefix of `'challenge_metric_\*'`. 
-#   The names that you provide in conjunction with a custom validation metrics to the ```run_challenge_experiment``` function will remain unchanged.  
-# - **'origin'** (str): The origin denotes where the numpy array came from. Possible values are any of the collaborator names (i.e. `'col1'`), or the aggregator.
-# - **'round'** (int): The round that produced the tensor. If your experiment has `N` rounds, possible values are `0->N-1`
-# - **'report'** (boolean): This field is one of the ways that a metric can be denoted; For the purpose of aggregation, this field can be ignored.
-# - **'tags'** (tuple(str)): The tags include unstructured information that can be used to create complex data flows. 
-#   For example, model layer weights will have the same `'tensor_name'` and `'round'` before and after training, 
-#   so a tag of `'trained'` is used to denote that the numpy array corresponds to the layer of a locally trained model. 
-#   This field is also used to capture metric information. 
-#   For example, `aggregated_model_validation` assigns tags of `'metric'` and `'validate_agg'` to reflect that 
-#   the metric reported corresponds to the validation score of the latest aggregated model, whereas the tags of `'metric'` and `'validate_local'` 
-#   are used for metrics produced through validation after training on a collaborator's local data.   
-# - **'nparray'** (numpy array) : This contains the value of the tensor. May contain the model weights, metrics, or hyperparameters as a numpy array.
-# 
-
-# ### Note about OpenFL "tensors"
-# In order to be ML framework agnostic, OpenFL represents tensors as numpy arrays. 
-# Throughout this code, tensor data is represented as numpy arrays (as opposed to torch tensors, for example).
+from pyparsing import col
+from sklearn.metrics import log_loss
 
 # # Custom Collaborator Training Selection
 # By default, all collaborators will be selected for training each round, 
@@ -95,65 +60,103 @@ def all_collaborators_train(collaborators,
     """
     return collaborators
 
-# this is not a good algorithm, but we include it to demonstrate the following:
-    # simple use of the logger and of fl_round
-    # you can search through the "collaborator_times_per_round" dictionary to see how long collaborators have been taking
-    # you can have a subset of collaborators train in a given round
-def one_collaborator_on_odd_rounds(collaborators,
-                                   db_iterator,
-                                   fl_round,
-                                   collaborators_chosen_each_round,
-                                   collaborator_times_per_round):
-    """Chooses which collaborators will train for a given round.
+##########################################################
+# # Custom selection functions - WY's trials
+##########################################################
+def wy_select_col_with_more_data_1(collaborators,
+                                    db_iterator,
+                                    fl_round,
+                                    collaborators_chosen_each_round,
+                                    collaborator_times_per_round):
+    # this is a list of ids for collaborator that has at least 10 data samples, hand-picked
+    training_collaborators = ['1', '3', '4', '5', '6', '7', '11', '12', '13', '15', '16', '18', '20', '21']
     
-    Args:
-        collaborators: list of strings of collaborator names
-        db_iterator: iterator over history of all tensors.
-            Columns: ['tensor_name', 'round', 'tags', 'nparray']
-        fl_round: round number
-        collaborators_chosen_each_round: a dictionary of {round: list of collaborators}. Each list indicates which collaborators trained in that given round.
-        collaborator_times_per_round: a dictionary of {round: {collaborator: total_time_taken_in_round}}.  
-    """
-    logger.info("one_collaborator_on_odd_rounds called!")
-    # on odd rounds, choose the fastest from the previous round
-    if fl_round % 2 == 1:
-        training_collaborators = None
-        fastest_time = np.inf
-        
-        # the previous round information will be index [fl_round - 1]
-        # this information is itself a dictionary of {col: time}
-        for col, t in collaborator_times_per_round[fl_round - 1].items():
-            if t < fastest_time:
-                fastest_time = t
-                training_collaborators = [col]
-    else:
-        training_collaborators = collaborators
     return training_collaborators
 
+def wy_select_col_with_more_data_2(collaborators,
+                                    db_iterator,
+                                    fl_round,
+                                    collaborators_chosen_each_round,
+                                    collaborator_times_per_round):
+    # this is a list of ids for collaborator that has at least 10 data samples, hand-picked
+    training_collaborators = preserved_col_id = ['1', '2', '3', '5', '6', '7', '8', '9', '10', '11', '15', '16', '17', '18', '19', '21', '22', '24', '25', '26', '28', '29', '30', '31'] # for partition_2
+    return training_collaborators
 
-# # Custom hyperparameters for training
+def random_sel_more_data_subset_p2(collaborators,
+                                    db_iterator,
+                                    fl_round,
+                                    collaborators_chosen_each_round,
+                                    collaborator_times_per_round):
+    """ this function randomly select training cols. from the hand-picked subset of all cols. with more than 10 data samples
+        the random selection using the probabilities which are normalized number of training samples 
+    """
+    
+    # this is a list of ids for collaborator that has at least 10 data samples, hand-picked
+    preserved_col_id = ['1', '2', '3', '5', '6', '7', '8', '9', '10', '11', '15', '16', '17', '18', '19', '21', '22', '24', '25', '26', '28', '29', '30', '31']
+    
+    # hand-calculated problabilities, for partition_2
+    prob_sel = [
+        0.14237856, 0.14237856, 0.14321608, 0.01256281, 0.01340034, 0.01256281,
+        0.01340034, 0.01842546, 0.02847571, 0.01005025, 0.01172529, 0.00921273,
+        0.01005025, 0.00921273, 0.01005025, 0.01088777, 0.02512563, 0.10636516,
+        0.10636516, 0.10720268, 0.02763819, 0.01005025, 0.00921273, 0.01005025
+        ]
+    prob_sel = np.array(prob_sel, dtype=np.float32) # make it a np array
 
-# You can customize the hyper-parameters for the training collaborators at each round. 
-# At the start of the round, the experiment loop will invoke your function and set the hyper-parameters for that round based on what you return.
-# 
-# The training hyper-parameters for a round are:
-# - **`learning_rate`**: the learning rate value set for the Adam optimizer
-# - **`batches_per_round`**: a flat number of batches each training collaborator will train. Must be an integer or None
-# - **`epochs_per_round`**: the number of epochs each training collaborator will train. Must be a float or None. Partial epochs are allowed, such as 0.5 epochs.
-# 
-# Note that exactly one of **`epochs_per_round`** and **`batches_per_round`** must be `"None"`. 
-# You will get an error message and the experiment will terminate if this is not the case to remind you of this requirement.
-# 
-# Your function will receive the typical aggregator state/history information that it can use to make its determination. 
-# The function must return a tuple of (`learning_rate`, `epochs_per_round`, `batches_per_round`). For example, if you return:
-# 
-# `(1e-4, 2.5, None)`
-# 
-# then all collaborators selected based on the [collaborator training selection criteria](#Custom-Collaborator-Training-Selection) 
-# will train for `2.5` epochs with a learning rate of `1e-4`.
-# 
-# Different hyperparameters can be specified for collaborators for different rounds but they remain the same for all the collaborators 
-# that are chosen for that particular round. In simpler words, collaborators can not have different hyperparameters for the same round.
+    rng = np.random.default_rng()
+    num_final_pick = 8 # 8 out of 33 approximately 25% ratio, 6 out of 33 approx. 20% ratio
+    training_collaborators = rng.choice(preserved_col_id, num_final_pick, replace=False, p=prob_sel)
+    
+    return training_collaborators
+
+def random_sel_more_data_p2(collaborators,
+                            db_iterator,
+                            fl_round,
+                            collaborators_chosen_each_round,
+                            collaborator_times_per_round):
+    """ this function randomly selects training cols. from partition_2, 
+        using the probabilities calculated as the normalized number of data samples
+        so cols. have more data are more likely to be selected.
+    """
+    col_ids = [
+        '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 
+        '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', 
+        '21', '22', '23', '24', '25', '26', '27', '28', '29', '30',
+        '31', '32', '33'
+        ]
+    prob_sel = [
+        0.13589129, 0.13589129, 0.13669065, 0.00479616, 0.01199041, 0.01278977,
+        0.01199041, 0.01278977, 0.01758593, 0.02717826, 0.00959233, 0.00639488,
+        0.00319744, 0.00639488, 0.01119105, 0.00879297, 0.00959233, 0.00879297,
+        0.00959233, 0.00479616, 0.01039169, 0.02398082, 0.00719424, 0.10151878,
+        0.10151878, 0.10231815, 0.00319744, 0.0263789,  0.00959233, 0.00879297,
+        0.00959233, 0.00559552, 0.0039968
+        ]
+    prob_sel = np.array(prob_sel, dtype=np.float32) # make it a np array
+
+    rng = np.random.default_rng()
+    num_final_pick = 8 # 8 out of 33 approximately 25% ratio, 6 out of 33 approx. 20% ratio
+    training_collaborators = rng.choice(col_ids, num_final_pick, replace=False, p=prob_sel)
+    
+    return training_collaborators
+
+def select_top6_cols_p2(collaborators,
+                    db_iterator,
+                    fl_round,
+                    collaborators_chosen_each_round,
+                    collaborator_times_per_round):
+    """ this function randomly select a subset of collaborators from the hand-picked list of collaborators with more than 10 data samples
+        the random selection using the probabilities which are normalized number of training samples 
+    """
+    
+    # this is a list of ids of the 5 collaborators that have more than 100 data samples, in partition_2
+    training_collaborators = ['1', '2', '3', '24', '25', '26']
+    
+    return training_collaborators
+
+##############################################
+# Custom hyperparameters for training
+###############################################
 
 # This simple example uses constant hyper-parameters through the experiment
 def constant_hyper_parameters(collaborators,
@@ -182,14 +185,12 @@ def constant_hyper_parameters(collaborators,
     learning_rate = 5e-5
     return (learning_rate, epochs_per_round, batches_per_round)
 
-
-# this example trains less at each round
-def train_less_each_round(collaborators,
-                          db_iterator,
-                          fl_round,
-                          collaborators_chosen_each_round,
-                          collaborator_times_per_round):
-    """Set the training hyper-parameters for the round.
+def lr_schedular_1(collaborators,
+                db_iterator,
+                fl_round,
+                collaborators_chosen_each_round,
+                collaborator_times_per_round):
+    """Set the learning rate for each fl round.
     
     Args:
         collaborators: list of strings of collaborator names
@@ -201,26 +202,24 @@ def train_less_each_round(collaborators,
     Returns:
         tuple of (learning_rate, epochs_per_round, batches_per_round). One of epochs_per_round and batches_per_round must be None.
     """
-
-    # we'll have a constant learning_rate
-    learning_rate = 5e-5
-    
-    # our epochs per round will start at 1.0 and decay by 0.9 for the first 10 rounds
+    # we leave these parameters unchanged
     epochs_per_round = 1.0
-    decay = min(fl_round, 10)
-    decay = 0.9 ** decay
-    epochs_per_round *= decay    
+    batches_per_round = None
+
+    init_learning_rate = 5e-5
     
-    return (learning_rate, epochs_per_round, None)
+    if fl_round<int(10):
+        learning_rate = init_learning_rate # for the first 10 rounds, use default value 
+    else:
+        learning_rate = 0.5 * init_learning_rate
+    return (learning_rate, epochs_per_round, batches_per_round)
 
-
-# this example has each institution train the same number of batches
-def fixed_number_of_batches(collaborators,
-                            db_iterator,
-                            fl_round,
-                            collaborators_chosen_each_round,
-                            collaborator_times_per_round):
-    """Set the training hyper-parameters for the round.
+def lr_schedular_2(collaborators,
+                db_iterator,
+                fl_round,
+                collaborators_chosen_each_round,
+                collaborator_times_per_round):
+    """Set the learning rate for each fl round.
     
     Args:
         collaborators: list of strings of collaborator names
@@ -232,123 +231,183 @@ def fixed_number_of_batches(collaborators,
     Returns:
         tuple of (learning_rate, epochs_per_round, batches_per_round). One of epochs_per_round and batches_per_round must be None.
     """
-
-    # we'll have a constant learning_rate
-    learning_rate = 5e-5
+    # we leave these parameters unchanged
+    epochs_per_round = 1.0
+    batches_per_round = None
     
-    # instead of a number of epochs, collaborators will train for a number of batches
-    # this means the number of training batches is irrespective of the data sizes at the institutions
-    # if the institution has less data than this, they will loop on their data until they have trained
-    # the correct number of batches
-    batches_per_round = 16
+    init_learning_rate = 5e-5 # intial lr is the same as the default value
+    lr_multiplier = [5, 2, 1]
+    # lr_multiplier = [10, 1, 0.1]
+    # lr_multiplier = [5, 1, 0.2]
+    # lr_multiplier = [2, 1, 0.5]
     
-    # Note that the middle element (epochs_per_round) is now None
-    return (learning_rate, None, batches_per_round)
 
+    if fl_round<int(5):
+        learning_rate = init_learning_rate * lr_multiplier[0]
+    elif fl_round<int(9):
+        learning_rate = init_learning_rate * lr_multiplier[1] 
+    else:
+        learning_rate = init_learning_rate * lr_multiplier[1] 
+    return (learning_rate, epochs_per_round, batches_per_round)
 
-# # Custom Aggregation Functions
-# Standard aggregation methods allow for simple layer-wise combination (via weighted_mean, mean, median, etc.); 
-# however, more complex aggregation methods can be supported by evaluating collaborator metrics, weights from prior rounds, etc. 
-# OpenFL enables custom aggregation functions via the [**AggregationFunctionInterface**]
-# (https://github.com/intel/openfl/blob/fets/openfl/component/aggregation_functions/interface.py). 
-# For the challenge, we wrap this interface so we can pass additional simulation state, such as simulated time.
-# 
-# [**LocalTensors**](https://github.com/intel/openfl/blob/fets/openfl/utilities/types.py#L13) are named tuples of the form `('collaborator_name', 'tensor', 'collaborator_weight')`. 
-# Your custom aggregation function will be passed a list of LocalTensors, which will contain an entry for each collaborator who participated in the prior training round. 
-# The [**`tensor_db`**](#Getting-access-to-historical-weights,-metrics,-and-more) gives direct access to the aggregator's tensor_db dataframe and includes all tensors / metrics reported by collaborators. 
-# Using the passed tensor_db reference, participants may even store custom information by using in-place write operations. A few examples are included below.
-# 
-# We also provide a number of convenience functions to be used in conjunction with the TensorDB for those who are less familiar with pandas. 
-# These are added directly to the dataframe object that gets passed to the aggregation function to make it easier to *store* , *retrieve*,
-#  and *search* through the database so that participants can focus on algorithms instead of infrastructure / framework details.
-#
-# tensor_db.store:
-#
-#        Convenience method to store a new tensor in the dataframe.
-#        Args:
-#            tensor_name [ optional ] : The name of the tensor (or metric) to be saved
-#            origin      [ optional ] : Origin of the tensor
-#            fl_round    [ optional ] : Round the tensor is associated with
-#            metric:     [ optional ] : Is the tensor a metric?
-#            tags:       [ optional ] : Tuple of unstructured tags associated with the tensor
-#            np.array    [ required ] : Value to store associated with the other included information (i.e. TensorKey info)
-#            overwrite:  [ optional ] : If the tensor is already present in the dataframe
-#                                       should it be overwritten?
-#        Returns:
-#            None
-#
-#
-# tensor_db.retrieve
-# 
-#        Convenience method to retrieve tensor from the dataframe.
-#        Args:
-#            tensor_name [ optional ] : The name of the tensor (or metric) to retrieve
-#            origin      [ optional ] : Origin of the tensor
-#            fl_round    [ optional ] : Round the tensor is associated with
-#            metric:     [ optional ] : Is the tensor a metric?
-#            tags:       [ optional ] : Tuple of unstructured tags associated with the tensor
-#                                       should it be overwritten?
-#        Returns:
-#            Optional[ np.array ]     : If there is a match, return the first row
-#
-# tensor_db.search
-#
-#        Search the tensor_db dataframe based on:
-#            - tensor_name
-#            - origin
-#            - fl_round
-#            - metric
-#            - tags
-#        Returns a new dataframe that matched the query
-#        Args:
-#            tensor_name: The name of the tensor (or metric) to be searched
-#            origin:      Origin of the tensor
-#            fl_round:    Round the tensor is associated with
-#            metric:      Is the tensor a metric?
-#            tags:        Tuple of unstructured tags associated with the tensor
-#        Returns:
-#            pd.DataFrame : New dataframe that matches the search query from 
-#                           the tensor_db dataframe
-#
-# ## Converting the tensor_db to a db_iterator (to reuse aggregation methods from last year's competition)
-# ### Using prior layer weights
-# Here is an example of how to extract layer weights from prior round. The tag is `'aggregated'` indicates this : 
-#     
-#     for _, record in tensor_db.iterrows():
-#             if (
-#                 record['round'] == (fl_round - 1)
-#                 and record['tensor_name'] == tensor_name
-#                 and 'aggregated' in record['tags']
-#                 and 'delta' not in record['tags']
-#                ):
-#                 previous_tensor_value = record['nparray']
-#                 break
-# 
-# ### Using validation metrics for filtering
-# 
-#     threshold = fl_round * 0.3 + 0.5
-#     metric_name = 'acc'
-#     tags = ('metric','validate_agg')
-#     selected_tensors = []
-#     selected_weights = []
-#     for _, record in tensor_db.iterrows():
-#         for local_tensor in local_tensors:
-#             tags = set(tags + [local_tensor.col_name])
-#             if (
-#                 tags <= set(record['tags']) 
-#                 and record['round'] == fl_round
-#                 and record['tensor_name'] == metric_name
-#                 and record['nparray'] >= threshold
-#             ):
-#                 selected_tensors.append(local_tensor.tensor)
-#                 selected_weights.append(local_tensor.weight)
-# 
-# ### A Note about true OpenFL deployments
-# The OpenFL custom aggregation interface does not currently provide timing information, 
-# so please note that any solutions that make use of simulated time will need to be adapted to be truly OpenFL compatible in a real federation by using actual `time.time()` calls (or similar) instead of the simulated time.
-# 
-# Solutions that use neither **`collaborators_chosen_each_round`** or **`collaborator_times_per_round`** will match the existing OpenFL aggregation customization interface, thus could be used in a real federated deployment using OpenFL.
+def lr_schedular_3(collaborators,
+                db_iterator,
+                fl_round,
+                collaborators_chosen_each_round,
+                collaborator_times_per_round):
+    """Set the learning rate for each fl round.
+    
+    Args:
+        collaborators: list of strings of collaborator names
+        db_iterator: iterator over history of all tensors.
+            Columns: ['tensor_name', 'round', 'tags', 'nparray']
+        fl_round: round number
+        collaborators_chosen_each_round: a dictionary of {round: list of collaborators}. Each list indicates which collaborators trained in that given round.
+        collaborator_times_per_round: a dictionary of {round: {collaborator: total_time_taken_in_round}}.  
+    Returns:
+        tuple of (learning_rate, epochs_per_round, batches_per_round). One of epochs_per_round and batches_per_round must be None.
+    """
+    # we leave these parameters unchanged
+    epochs_per_round = 1.0
+    batches_per_round = None
+    
+    init_learning_rate = 5e-5 # intial lr is the same as the default value
+    lr_decay = 0.9
 
+    if fl_round == 0:
+        learning_rate = init_learning_rate
+    else:
+        learning_rate = init_learning_rate * lr_decay
+
+    return (learning_rate, epochs_per_round, batches_per_round)
+
+##########################################################
+# # Custom Aggregation Functions - WY's trials
+##########################################################
+def find_previous_tensor_agg(tensor_db, tensor_name, fl_round):
+    previous_tensor_value = None
+    for _, record in tensor_db.iterrows():
+        if (
+            # record['round'] == (fl_round - 1)
+            record['round'] == fl_round
+            and record['tensor_name'] == tensor_name
+            and 'aggregated' in record['tags']
+            and 'delta' not in record['tags']
+            ):
+            previous_tensor_value = record['nparray']
+            break
+    
+    # # another way of getting the aggregated model of the previous round
+    # previous_tensor_value = tensor_db.search(tensor_name=tensor_name, fl_round=fl_round, tags=('model',), origin='aggregator')
+    # previous_tensor_value = previous_tensor_value.nparray.iloc[0]
+    return previous_tensor_value
+
+def get_dist_score(local_tensors, tensor_db, tensor_name, fl_round):
+    """ compute the scores for each local model updates which is inverse propotional to the euclidean distance from the local models to the centroid
+    """
+    
+    # get the aggregated model parameters of the previous round
+    previous_tensor_agg = find_previous_tensor_agg(tensor_db, tensor_name, fl_round) # using the aggregated model of the previous round as the reference point
+    # privious_tensor_agg = tensor_db.retrieve(tensor_name=tensor_name, tags=('tensor_agg_round_0',)) # [optional] using the aggregated model of first round as the reference point
+    
+    assert previous_tensor_agg is not None, 'ERROR: previous aggregated tensor is None'
+
+    # compute the model updates of each col
+    deltas = [t.tensor - previous_tensor_agg for t in local_tensors]
+
+    # compute the centroid of the model updates as the mean and/or median
+    deltas_cent = np.mean(deltas, axis=0)
+    # deltas_cent = np.median(deltas, axis=0)
+    
+    # compute the euclidean distance to the centroid of model udpates 
+    deltas_norm = [np.linalg.norm(d-deltas_cent) for d in deltas]
+    deltas_norm = np.array(deltas_norm, dtype=np.float64)
+
+    # map the euclidean distance with exponential function to make the closeness score inverse propotional to the distance
+    gamma = np.float64(1e-2)
+    dist_scores = np.exp(-gamma*deltas_norm)
+
+    # normalize the distance score into [0 ,1]
+    dist_scores = dist_scores/dist_scores.sum()
+    
+    return dist_scores
+
+def get_val_loss_score(local_tensors,tensor_db,fl_round):
+    """ this function get the local validation loss of each col
+    """
+    # metric_name = 'valid_dice'
+    metric_name = 'valid_loss'
+    tags_local = ('metric','validate_local')
+    val_loss = {}
+    for _, record in tensor_db.iterrows():
+        for t in local_tensors:
+            col = t.col_name
+            tags = set(tags_local + tuple([col]))
+            record_tags = record['tags']
+
+            if (
+                tags <= set(record_tags) 
+                and record['round'] == fl_round
+                and record['tensor_name'] == metric_name
+            ):
+                val_loss[col]=record['nparray']
+    
+    # normalize the score to [0, 1]
+    sum=0
+    for _, loss in val_loss.items():
+        sum += loss
+    for col, loss in val_loss.items():
+        val_loss[col] = loss/sum
+    val_scores = np.array([val_loss[t.col_name] for t in local_tensors],dtype=np.float64)
+    return val_loss, val_scores
+
+def get_hybrid_score_val(local_tensors, tensor_db, tensor_name, fl_round):
+    # get the scores w.r.t. to closseness/distance
+    dist_scores = get_dist_score(local_tensors, tensor_db, tensor_name, fl_round)
+    
+    # get the scores w.r.t. local validation loss
+    _, val_loss_scores = get_val_loss_score(local_tensors,tensor_db,fl_round)
+
+    # get the hybrid scores
+    hybrid_scores = dist_scores * val_loss_scores
+
+    # normalize the score into [0 ,1]
+    hybrid_scores = hybrid_scores/hybrid_scores.sum()
+
+    return hybrid_scores
+
+def wy_agg_func_hybrid_val(local_tensors,
+                        tensor_db,
+                        tensor_name,
+                        fl_round,
+                        collaborators_chosen_each_round,
+                        collaborator_times_per_round):
+    """ this aggregation function finds the aggregated model by weighting local model updates (relative to the previous round) 
+        with the normalized products of the distance scores and validation scores
+        the hybrid score is similar to eqn (3) in https://arxiv.org/abs/2012.08565
+    """
+    
+    if fl_round == 0:
+        # in the first round, just do normal fedavg
+        tensor_values = [t.tensor for t in local_tensors]
+        weight_values = [t.weight for t in local_tensors]               
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)   
+        
+        # besides, also save the aggregated model for the computing of model update direction in the later roudns [optional]
+        tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
+    else:        
+        # weighting by the hybrid scores
+        weight_values = get_hybrid_score_val(local_tensors, tensor_db, tensor_name, fl_round)
+
+        # compute the aggregated model using the distance score directly
+        tensor_values = [t.tensor for t in local_tensors]
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)  
+    
+    return new_tensor_agg
+
+#############################################################
+##         BASELINE METHODS
+##############################################################
 
 # the simple example of weighted FedAVG
 def weighted_average_aggregation(local_tensors,
@@ -378,68 +437,6 @@ def weighted_average_aggregation(local_tensors,
     
     # so we can just use numpy.average
     return np.average(tensor_values, weights=weight_values, axis=0)
-
-# here we will clip outliers by clipping deltas to the Nth percentile (e.g. 80th percentile)
-def clipped_aggregation(local_tensors,
-                        tensor_db,
-                        tensor_name,
-                        fl_round,
-                        collaborators_chosen_each_round,
-                        collaborator_times_per_round):
-    """Aggregate tensors. This aggregator clips all tensor values to the 80th percentile of the absolute values to prevent extreme changes.
-
-    Args:
-        local_tensors(list[openfl.utilities.LocalTensor]): List of local tensors to aggregate.
-        tensor_db: pd.DataFrame that contains global tensors / metrics.
-            Columns: ['tensor_name', 'origin', 'round', 'report',  'tags', 'nparray']
-        tensor_name: name of the tensor
-        fl_round: round number
-        collaborators_chosen_each_round: a dictionary of {round: list of collaborators}. Each list indicates which collaborators trained in that given round.
-        collaborator_times_per_round: a dictionary of {round: {collaborator: total_time_taken_in_round}}.
-    """
-    # the percentile we will clip to
-    clip_to_percentile = 80
-    
-    # first, we need to determine how much each local update has changed the tensor from the previous value
-    # we'll use the tensor_db search function to find the 
-    previous_tensor_value = tensor_db.search(tensor_name=tensor_name, fl_round=fl_round, tags=('model',), origin='aggregator')
-
-    if previous_tensor_value.shape[0] > 1:
-        print(previous_tensor_value)
-        raise ValueError(f'found multiple matching tensors for {tensor_name}, tags=(model,), origin=aggregator')
-
-    if previous_tensor_value.shape[0] < 1:
-        # no previous tensor, so just return the weighted average
-        return weighted_average_aggregation(local_tensors,
-                                            tensor_db,
-                                            tensor_name,
-                                            fl_round,
-                                            collaborators_chosen_each_round,
-                                            collaborator_times_per_round)
-
-    previous_tensor_value = previous_tensor_value.nparray.iloc[0]
-
-    # compute the deltas for each collaborator 
-    # NOTE you may re-use this line for your purpose
-    deltas = [t.tensor - previous_tensor_value for t in local_tensors]
-
-    # get the target percentile using the absolute values of the deltas
-    clip_value = np.percentile(np.abs(deltas), clip_to_percentile)
-        
-    # let's log what we're clipping to
-    logger.info("Clipping tensor {} to value {}".format(tensor_name, clip_value))
-    
-    # now we can compute our clipped tensors
-    clipped_tensors = []
-    for delta, t in zip(deltas, local_tensors):
-        new_tensor = previous_tensor_value + np.clip(delta, -1 * clip_value, clip_value)
-        clipped_tensors.append(new_tensor)
-        
-    # get an array of weight values for the weighted average
-    weights = [t.weight for t in local_tensors]
-
-    # return the weighted average of the clipped tensors
-    return np.average(clipped_tensors, weights=weights, axis=0)
 
 # Adapted from FeTS Challenge 2021
 # Federated Brain Tumor Segmentation:Multi-Institutional Privacy-Preserving Collaborative Learning
@@ -579,9 +576,20 @@ def FedAvgM_Selection(local_tensors,
 
 # change any of these you wish to your custom functions. You may leave defaults if you wish.
 # aggregation_function = weighted_average_aggregation
-aggregation_function = FedAvgM_Selection
-choose_training_collaborators = all_collaborators_train
+# aggregation_function = FedAvgM_Selection
+
+# choose from the following list for customized aggregation function
+aggregation_function = wy_agg_func_hybrid_val # basic
+
+# training col selection strategy
+# choose_training_collaborators = all_collaborators_train
+choose_training_collaborators = select_top6_cols_p2
+# choose_training_collaborators = random_sel_more_data_p2
+# choose_training_collaborators = random_sel_more_data_subset_p2
+
+# hyper param.
 training_hyper_parameters_for_round = constant_hyper_parameters
+# training_hyper_parameters_for_round = lr_schedular_2
 
 # As mentioned in the 'Custom Aggregation Functions' section (above), six 
 # perfomance evaluation metrics are included by default for validation outputs in addition 
@@ -592,15 +600,21 @@ include_validation_with_hausdorff=False
 
 # We encourage participants to experiment with partitioning_1 and partitioning_2, as well as to create
 # other partitionings to test your changes for generalization to multiple partitionings.
-#institution_split_csv_filename = 'partitioning_1.csv'
+<<<<<<< HEAD:Task_1/FeTS_Challenge_wy_dist.py
+# institution_split_csv_filename = 'partitioning_2.csv'
 institution_split_csv_filename = 'small_split.csv'
+=======
+# institution_split_csv_filename = 'small_split.csv'
+# institution_split_csv_filename = 'partitioning_1.csv'
+institution_split_csv_filename = 'partitioning_2.csv'
+>>>>>>> 2d43486969573606ab4c09cd30ef4070e2ca6892:Task_1/arxiv/FeTS_Challenge_wy_hybrid_val_dist.py
 
 # change this to point to the parent directory of the data
-brats_training_data_parent_dir = '/home/wang_yuan/fets2022/Data/TrainingData'
+brats_training_data_parent_dir = '/mnt/data/home/wangyuan/Challenge/Data/TrainingData'
 
 # increase this if you need a longer history for your algorithms
 # decrease this if you need to reduce system RAM consumption
-db_store_rounds = 10
+db_store_rounds = 1
 
 # this is passed to PyTorch, so set it accordingly for your system
 device = 'cuda'
@@ -639,29 +653,19 @@ scores_dataframe, checkpoint_folder = run_challenge_experiment(
 
 
 scores_dataframe
+print(scores_dataframe)
 
-
-# ## Produce NIfTI files for best model outputs on the validation set
-# Now we will produce model outputs to submit to the leader board.
-# 
-# At the end of every experiment, the best model (according to average ET, TC, WT DICE) 
-# is saved to disk at: ~/.local/workspace/checkpoint/\<checkpoint folder\>/best_model.pkl,
-# where \<checkpoint folder\> is the one printed to stdout during the start of the 
-# experiment (look for the log entry: "Created experiment folder experiment_##..." above).
-
-
-from fets_challenge import model_outputs_to_disc
 from pathlib import Path
-
 # infer participant home folder
 home = str(Path.home())
+<<<<<<< HEAD:Task_1/FeTS_Challenge_wy_dist.py
 
 # you will need to specify the correct experiment folder and the parent directory for
 # the data you want to run inference over (assumed to be the experiment that just completed)
 
 #checkpoint_folder='experiment_1'
 #data_path = </PATH/TO/CHALLENGE_VALIDATION_DATA>
-data_path = '/home/wang_yuan/fets2022/Data/ValidationData'
+data_path = '/mnt/data/home/wangyuan/Challenge/Data/ValidationData'
 validation_csv_filename = 'validation.csv'
 
 # you can keep these the same if you wish
@@ -683,9 +687,16 @@ model_outputs_to_disc(data_path=data_path,
                       native_model_path=final_model_path,
                       outputtag='',
                       device=device)
+=======
+scores_dataframe_file = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'scores_df.csv')
+scores_dataframe.to_csv(scores_dataframe_file)
+>>>>>>> 2d43486969573606ab4c09cd30ef4070e2ca6892:Task_1/arxiv/FeTS_Challenge_wy_hybrid_val_dist.py
 
 time_end = time.time()
 
 # show the time elapsed for this session
 sesseion_time = np.around((time_end-time_start)/3600, 2)
 print('Session time: {} hrs. That\'s all folks.'.format(sesseion_time))
+
+time_end_stamp = time.strftime('%y-%m-%d-%H-%M-%S')
+print(f'Session completed at {time_end_stamp}')

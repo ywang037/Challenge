@@ -60,17 +60,52 @@ def all_collaborators_train(collaborators,
     """
     return collaborators
 
+# this is not a good algorithm, but we include it to demonstrate the following:
+    # simple use of the logger and of fl_round
+    # you can search through the "collaborator_times_per_round" dictionary to see how long collaborators have been taking
+    # you can have a subset of collaborators train in a given round
+def one_collaborator_on_odd_rounds(collaborators,
+                                   db_iterator,
+                                   fl_round,
+                                   collaborators_chosen_each_round,
+                                   collaborator_times_per_round):
+    """Chooses which collaborators will train for a given round.
+    
+    Args:
+        collaborators: list of strings of collaborator names
+        db_iterator: iterator over history of all tensors.
+            Columns: ['tensor_name', 'round', 'tags', 'nparray']
+        fl_round: round number
+        collaborators_chosen_each_round: a dictionary of {round: list of collaborators}. Each list indicates which collaborators trained in that given round.
+        collaborator_times_per_round: a dictionary of {round: {collaborator: total_time_taken_in_round}}.  
+    """
+    logger.info("one_collaborator_on_odd_rounds called!")
+    # on odd rounds, choose the fastest from the previous round
+    if fl_round % 2 == 1:
+        training_collaborators = None
+        fastest_time = np.inf
+        
+        # the previous round information will be index [fl_round - 1]
+        # this information is itself a dictionary of {col: time}
+        for col, t in collaborator_times_per_round[fl_round - 1].items():
+            if t < fastest_time:
+                fastest_time = t
+                training_collaborators = [col]
+    else:
+        training_collaborators = collaborators
+    return training_collaborators
 
 ##########################################################
 # # Custom selection functions - WY's trials
 ##########################################################
+
 def wy_select_col_with_more_data_1(collaborators,
                                     db_iterator,
                                     fl_round,
                                     collaborators_chosen_each_round,
                                     collaborator_times_per_round):
     # this is a list of ids for collaborator that has at least 10 data samples, hand-picked
-    preserved_col_id = [0, 2, 3, 4, 5, 6, 10, 11, 12, 14, 15, 17, 19, 20, 21] # for partition_1
+    preserved_col_id = [0, 2, 3, 4, 5, 6, 10, 11, 12, 14, 15, 17, 19, 20] # for partition_1
     training_collaborators = [collaborators[i] for i in preserved_col_id]
     
     return training_collaborators
@@ -81,7 +116,7 @@ def wy_select_col_with_more_data_2(collaborators,
                                     collaborators_chosen_each_round,
                                     collaborator_times_per_round):
     # this is a list of ids for collaborator that has at least 10 data samples, hand-picked
-    preserved_col_id = [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 20, 21, 23, 24, 25, 27, 28, 29, 30, 31] # for partition_2
+    preserved_col_id = [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 20, 21, 23, 24, 25, 27, 28, 29, 30] # for partition_2
     training_collaborators = [collaborators[i] for i in preserved_col_id]
     
     return training_collaborators
@@ -95,13 +130,17 @@ def wy_select_col_with_more_data_subset_1(collaborators,
         the random selection using the probabilities which are normalized number of training samples 
     """
     # this is a list of ids for collaborator that has at least 10 data samples, hand-picked
-    preserved_col_id = [0, 2, 3, 4, 5, 6, 10, 11, 12, 14, 15, 17, 19, 20, 21] # for partition_1
+    preserved_col_id = [0, 2, 3, 4, 5, 6, 10, 11, 12, 14, 15, 17, 19, 20] # for partition_1
     
     # hand-calculated problabilities, for partition_1
     prob_of_select = [
-        0.42371476, 0.01243781, 0.03897181, 0.01824212, 0.02819237, 
-        0.00995025, 0.01160862, 0.00912106, 0.02902156, 0.01077944, 
-        0.02487562, 0.31674959, 0.02736318, 0.02902156, 0.00995025
+        0.4279732, 0.01256281, 
+        0.03936348, 0.01842546, 
+        0.02847571, 0.01005025, 
+        0.01172529, 0.00921273, 
+        0.02931323, 0.01088777, 
+        0.02512563, 0.319933, 
+        0.02763819, 0.02931323
         ]
     prob_of_select = np.array(prob_of_select, dtype=np.float32) # make it a np array
 
@@ -122,15 +161,14 @@ def wy_select_col_with_more_data_subset_2(collaborators,
     """
     
     # this is a list of ids for collaborator that has at least 10 data samples, hand-picked
-    preserved_col_id = [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 20, 21, 23, 24, 25, 27, 28, 29, 30, 31] # for partition_2
+    preserved_col_id = [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 20, 21, 23, 24, 25, 27, 28, 29, 30] # for partition_2
     
     # hand-calculated problabilities, for partition_2
     prob_of_select = [
-        0.14096186, 0.14096186, 0.14179104, 0.01243781, 0.013267,
-        0.01243781, 0.013267  , 0.01824212, 0.02819237, 0.00995025,
-        0.01160862, 0.00912106, 0.00995025, 0.00912106, 0.00995025,
-        0.01077944, 0.02487562, 0.1053068 , 0.1053068 , 0.10613599,
-        0.02736318, 0.00995025, 0.00912106, 0.00995025, 0.00995025
+        0.14237856, 0.14237856, 0.14321608, 0.01256281, 0.01340034, 0.01256281,
+        0.01340034, 0.01842546, 0.02847571, 0.01005025, 0.01172529, 0.00921273,
+        0.01005025, 0.00921273, 0.01005025, 0.01088777, 0.02512563, 0.10636516,
+        0.10636516, 0.10720268, 0.02763819, 0.01005025, 0.00921273, 0.01005025
         ]
     prob_of_select = np.array(prob_of_select, dtype=np.float32) # make it a np array
 
@@ -141,10 +179,9 @@ def wy_select_col_with_more_data_subset_2(collaborators,
     
     return training_collaborators
 
-
-
-
-# # Custom hyperparameters for training
+##############################################
+# Custom hyperparameters for training
+###############################################
 
 # This simple example uses constant hyper-parameters through the experiment
 def constant_hyper_parameters(collaborators,
@@ -173,7 +210,31 @@ def constant_hyper_parameters(collaborators,
     learning_rate = 5e-5
     return (learning_rate, epochs_per_round, batches_per_round)
 
-
+def lr_schedular(collaborators,
+                db_iterator,
+                fl_round,
+                collaborators_chosen_each_round,
+                collaborator_times_per_round):
+    """Set the training hyper-parameters for the round.
+    
+    Args:
+        collaborators: list of strings of collaborator names
+        db_iterator: iterator over history of all tensors.
+            Columns: ['tensor_name', 'round', 'tags', 'nparray']
+        fl_round: round number
+        collaborators_chosen_each_round: a dictionary of {round: list of collaborators}. Each list indicates which collaborators trained in that given round.
+        collaborator_times_per_round: a dictionary of {round: {collaborator: total_time_taken_in_round}}.  
+    Returns:
+        tuple of (learning_rate, epochs_per_round, batches_per_round). One of epochs_per_round and batches_per_round must be None.
+    """
+    epochs_per_round = 1.0
+    batches_per_round = None
+    init_learning_rate = 5e-5
+    if fl_round<int(10):
+        learning_rate = init_learning_rate # for the first 10 rounds, use default value 
+    else:
+        learning_rate = 0.5 * init_learning_rate
+    return (learning_rate, epochs_per_round, batches_per_round)
 
 ##########################################################
 # # Custom Aggregation Functions - WY's trials
@@ -261,19 +322,22 @@ def get_dist_score2(local_tensors, tensor_db, tensor_name, fl_round):
 
     return dist_scores
 
-# get the validation loss of every collaborators in a specific round
 def get_val_loss_score(local_tensors,tensor_db,fl_round):
-    # metric_name = 'acc'
-    metric_name = 'loss'
-    tags = ('metric','validate_local')
+    """ this function get the local validation loss of each col
+    """
+    # metric_name = 'valid_dice'
+    metric_name = 'valid_loss'
+    tags_local = ('metric','validate_local')
     val_loss = {}
-    for record in tensor_db.iterrows():
+    for _, record in tensor_db.iterrows():
         for t in local_tensors:
-            # tags = set(tags + tuple([t.col_name]))
-            some_tuple = record['tags']
+            col = t.col_name
+            tags = set(tags_local + tuple([col]))
+            record_tags = record['tags']
+
             if (
-                set(tags + tuple([t.col_name])) <= set(some_tuple) 
-                and record['round'] == fl_round-1
+                tags <= set(record_tags) 
+                and record['round'] == fl_round
                 and record['tensor_name'] == metric_name
             ):
                 val_loss[col]=record['nparray']
@@ -283,30 +347,90 @@ def get_val_loss_score(local_tensors,tensor_db,fl_round):
     for _, loss in val_loss.items():
         sum += loss
     for col, loss in val_loss.items():
-        val_loss[col] = loss/sum   
+        val_loss[col] = loss/sum
     val_scores = np.array([val_loss[t.col_name] for t in local_tensors],dtype=np.float64)
     return val_loss, val_scores
-    # val_loss = []
-    # for _, record in tensor_db.iterrows():
-    #     for local_tensor in local_tensors:
-    #         tags = set(tags + tuple([local_tensor.col_name]))
-    #         if (
-    #             tags <= set(record['tags']) 
-    #             and record['round'] == fl_round
-    #             and record['tensor_name'] == metric_name
-    #         ):
-    #             val_loss.append(record['nparray'])
-    # return np.array(val_loss,dtype=np.float64)
 
-def get_hybrid_score(local_tensors, tensor_db, tensor_name, fl_round):
+def get_val_loss_delta_score(local_tensors,tensor_db,fl_round):
+    """ this function gets the reduction in validation loss for each col,
+        the reduction is cast to zero if it is negative
+        i.e., max(validate_local - validate_agg, 0)
+    """
+    # metric_name = 'valid_dice'
+    metric_name = 'valid_loss'
+    tags_local = ('metric','validate_local')
+    tags_agg = ('metric','validate_agg')
+    val_loss_local, val_loss_agg, val_loss_delta = {}, {}, {}
+    for _, record in tensor_db.iterrows():
+        for t in local_tensors:
+            col = t.col_name
+            tags_local_ = set(tags_local + tuple([col]))
+            tags_agg_ = set(tags_agg + tuple([col]))
+            record_tags = record['tags']
+            if (
+                tags_local_ <= set(record_tags) 
+                and record['round'] == fl_round
+                and record['tensor_name'] == metric_name
+            ):
+                val_loss_local[col]=record['nparray']
+            if (
+                tags_agg_ <= set(record_tags) 
+                and record['round'] == fl_round
+                and record['tensor_name'] == metric_name
+            ):
+                val_loss_agg[col]=record['nparray']
+                # val_loss_delta[col] = max(val_loss_local[col] - val_loss_agg[col],0) # local validation is supposed to be done after agg model validation
+
+    for t in local_tensors:
+        col = t.col_name
+        delta_loss = val_loss_local[col] - val_loss_agg[col]
+        val_loss_delta[col] = max(delta_loss,0) # local validation is supposed to be done after agg model validation
+
+    sum=0
+    for _, loss in val_loss_delta.items():
+        sum += loss
+    if sum:        
+        # if sum is not zero, i.e., at least one col has positive reduction in val loss, then do normalization
+        for col, loss in val_loss_delta.items():
+            val_loss_delta[col] = loss/sum   
+        val_loss_delta_scores = np.array([val_loss_delta[t.col_name] for t in local_tensors],dtype=np.float64)
+    else:
+        # if none of the cols reduces local validation loss, then output None, 
+        # then let the caller function decide if output is None
+        val_loss_delta = None
+        val_loss_delta_scores = None
+    
+    return val_loss_delta, val_loss_delta_scores
+
+def get_hybrid_score_val(local_tensors, tensor_db, tensor_name, fl_round):
     # get the scores w.r.t. to closseness/distance
     dist_scores = get_dist_score(local_tensors, tensor_db, tensor_name, fl_round)
     
     # get the scores w.r.t. local validation loss
-    _, val_scores = get_val_loss_score(local_tensors,tensor_db,fl_round)
+    _, val_loss_scores = get_val_loss_score(local_tensors,tensor_db,fl_round)
 
     # get the hybrid scores
-    hybrid_scores = dist_scores * val_scores
+    hybrid_scores = dist_scores * val_loss_scores
+
+    # normalize the score into [0 ,1]
+    hybrid_scores = hybrid_scores/hybrid_scores.sum()
+
+    return hybrid_scores
+
+def get_hybrid_score_val_delta(local_tensors, tensor_db, tensor_name, fl_round):
+    # get the scores w.r.t. to closseness/distance
+    dist_scores = get_dist_score(local_tensors, tensor_db, tensor_name, fl_round)
+    
+    # get the scores w.r.t. local validation loss
+    # _, val_loss_scores = get_val_loss_delta_score(local_tensors,tensor_db,fl_round)
+    _, val_delta_scores = get_val_loss_delta_score(local_tensors,tensor_db,fl_round)
+
+    # get the hybrid scores
+    if val_delta_scores is not None:
+        hybrid_scores = dist_scores * val_delta_scores
+    else:
+        # if none of the cols reduces local validation loss, then just use dist-based scores instead
+        hybrid_scores = dist_scores
 
     # normalize the score into [0 ,1]
     hybrid_scores = hybrid_scores/hybrid_scores.sum()
@@ -341,34 +465,35 @@ def wy_agg_func_dist(local_tensors,
     
     return new_tensor_agg
 
-def wy_agg_func_dist2(local_tensors,
-                        tensor_db,
-                        tensor_name,
-                        fl_round,
-                        collaborators_chosen_each_round,
-                        collaborator_times_per_round):
-    """ this aggregation function finds the aggregated model by weighting local model updates (relative to the previous round) with the normliazed distance 
-        the distance is measured from each local update to the centroid of all local model udpates
-    """
+# # the following method is depracted
+# def wy_agg_func_dist2(local_tensors,
+#                         tensor_db,
+#                         tensor_name,
+#                         fl_round,
+#                         collaborators_chosen_each_round,
+#                         collaborator_times_per_round):
+#     """ this aggregation function finds the aggregated model by weighting local model updates (relative to the previous round) with the normliazed distance 
+#         the distance is measured from each local update to the centroid of all local model udpates
+#     """
     
-    if fl_round == 0:
-        # in the first round, just do normal fedavg
-        tensor_values = [t.tensor for t in local_tensors]
-        weight_values = [t.weight for t in local_tensors]               
-        new_tensor_agg =  np.average(tensor_values, weights=weight_values, axis=0)   
+#     if fl_round == 0:
+#         # in the first round, just do normal fedavg
+#         tensor_values = [t.tensor for t in local_tensors]
+#         weight_values = [t.weight for t in local_tensors]               
+#         new_tensor_agg =  np.average(tensor_values, weights=weight_values, axis=0)   
         
-        # besides, also save the aggregated model for the computing of model update direction in the later roudns [optional]
-        tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
-    else:
-        # get the scores w.r.t. to closseness/distance
-        dist_scores = get_dist_score2(local_tensors, tensor_db, tensor_name, fl_round)
+#         # besides, also save the aggregated model for the computing of model update direction in the later roudns [optional]
+#         tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
+#     else:
+#         # get the scores w.r.t. to closseness/distance
+#         dist_scores = get_dist_score2(local_tensors, tensor_db, tensor_name, fl_round)
         
-        # compute the aggregated model
-        tensor_values = [t.tensor for t in local_tensors]
-        weight_values = [dist_scores[t.col_name] for t in local_tensors]
-        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)  
+#         # compute the aggregated model
+#         tensor_values = [t.tensor for t in local_tensors]
+#         weight_values = [dist_scores[t.col_name] for t in local_tensors]
+#         new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)  
     
-    return new_tensor_agg
+#     return new_tensor_agg
 
 def wy_agg_func_val(local_tensors,
                     tensor_db,
@@ -398,8 +523,39 @@ def wy_agg_func_val(local_tensors,
     
     return new_tensor_agg
 
-# as the wy_agg_func_val is not working, this function is pending revision
-def wy_agg_func_hybrid(local_tensors,
+def wy_agg_func_val_delta(local_tensors,
+                            tensor_db,
+                            tensor_name,
+                            fl_round,
+                            collaborators_chosen_each_round,
+                            collaborator_times_per_round):
+    """ this aggregation function finds the aggregated model by weighting local model updates (relative to the previous round) with the local validation losses
+    """
+    
+    if fl_round == 0:
+        # in the first round, just do normal fedavg
+        tensor_values = [t.tensor for t in local_tensors]
+        weight_values = [t.weight for t in local_tensors]               
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)   
+        
+        # besides, also save the aggregated model for the computing of model update direction in the later roudns [optional]
+        tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
+    else:        
+        # get the scores w.r.t. local validation loss
+        val_loss_delta, _ = get_val_loss_delta_score(local_tensors,tensor_db,fl_round)
+        
+        # compute the aggregated model
+        tensor_values = [t.tensor for t in local_tensors]
+        if val_loss_delta is not None:
+            weight_values = [val_loss_delta[t.col_name] for t in local_tensors]
+        else:
+            # if none of cols reduces local validation loss, just use standard fedavg weights
+            weight_values = [t.weight for t in local_tensors]    
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)  
+    
+    return new_tensor_agg
+
+def wy_agg_func_hybrid_val(local_tensors,
                         tensor_db,
                         tensor_name,
                         fl_round,
@@ -420,7 +576,7 @@ def wy_agg_func_hybrid(local_tensors,
         tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
     else:        
         # weighting by the hybrid scores
-        weight_values = get_hybrid_score(local_tensors, tensor_db, tensor_name, fl_round)
+        weight_values = get_hybrid_score_val(local_tensors, tensor_db, tensor_name, fl_round)
 
         # compute the aggregated model using the distance score directly
         tensor_values = [t.tensor for t in local_tensors]
@@ -428,12 +584,42 @@ def wy_agg_func_hybrid(local_tensors,
     
     return new_tensor_agg
 
-def wy_agg_func_adv(local_tensors,
-                    tensor_db,
-                    tensor_name,
-                    fl_round,
-                    collaborators_chosen_each_round,
-                    collaborator_times_per_round):
+def wy_agg_func_hybrid_val_delta(local_tensors,
+                                tensor_db,
+                                tensor_name,
+                                fl_round,
+                                collaborators_chosen_each_round,
+                                collaborator_times_per_round):
+    """ this aggregation function finds the aggregated model by weighting local model updates (relative to the previous round) 
+        with the normalized products of the distance scores and validation scores
+        the hybrid score is similar to eqn (3) in https://arxiv.org/abs/2012.08565
+    """
+    
+    if fl_round == 0:
+        # in the first round, just do normal fedavg
+        tensor_values = [t.tensor for t in local_tensors]
+        weight_values = [t.weight for t in local_tensors]               
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)   
+        
+        # besides, also save the aggregated model for the computing of model update direction in the later roudns [optional]
+        tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
+    else:        
+        # weighting by the hybrid scores
+        weight_values = get_hybrid_score_val_delta(local_tensors, tensor_db, tensor_name, fl_round)
+
+        # compute the aggregated model using the distance score directly
+        tensor_values = [t.tensor for t in local_tensors]
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)  
+    
+    return new_tensor_agg
+
+
+def wy_agg_func_dist_adv(local_tensors,
+                        tensor_db,
+                        tensor_name,
+                        fl_round,
+                        collaborators_chosen_each_round,
+                        collaborator_times_per_round):
     """ advanced aggregation, the weight values are the defualt weights multiply those of customized aggregation function
         this function is similar to eqn (6) in https://arxiv.org/pdf/2203.13993.pdf
     """
@@ -451,12 +637,10 @@ def wy_agg_func_adv(local_tensors,
 
         # compute the customized aggregation weights, i.e., scores associated to each local tensor
         # these scores can be the output of get_dist_score, or get_val_loss, or get_hybrid_score
-        first_scores = get_dist_score(local_tensors, tensor_db, tensor_name, fl_round) 
-        # _, first_scores = get_val_loss_score(local_tensors,tensor_db,fl_round)
-        # first_scores = get_hybrid_score(local_tensors, tensor_db, tensor_name, fl_round)
+        dist_scores = get_dist_score(local_tensors, tensor_db, tensor_name, fl_round) 
 
         # compute the final scores
-        final_scores = weight_values_default * first_scores
+        final_scores = weight_values_default * dist_scores
 
         # normalize the score into [0 ,1]
         weight_values = final_scores/final_scores.sum()
@@ -467,7 +651,7 @@ def wy_agg_func_adv(local_tensors,
 
     return new_tensor_agg
 
-def wy_agg_func_adv2(local_tensors,
+def wy_agg_func_dist_adv2(local_tensors,
                     tensor_db,
                     tensor_name,
                     fl_round,
@@ -493,13 +677,11 @@ def wy_agg_func_adv2(local_tensors,
 
         # compute the customized aggregation weights, i.e., scores associated to each local tensor
         # these scores can be the output of get_dist_score, or get_val_loss, or get_hybrid_score
-        first_scores = get_dist_score(local_tensors, tensor_db, tensor_name, fl_round) 
-        # _, first_scores = get_val_loss_score(local_tensors,tensor_db,fl_round)
-        # first_scores = get_hybrid_score(local_tensors, tensor_db, tensor_name, fl_round)
+        dist_scores = get_dist_score(local_tensors, tensor_db, tensor_name, fl_round) 
 
         # compute the final scores
         alpha = np.float64(0.5)
-        final_scores = alpha*weight_values_default + (1-alpha)*first_scores
+        final_scores = alpha*weight_values_default + (1-alpha)*dist_scores
 
         # normalize the score into [0 ,1]
         weight_values = final_scores/final_scores.sum()
@@ -509,6 +691,322 @@ def wy_agg_func_adv2(local_tensors,
 
     return new_tensor_agg
 
+def wy_agg_func_val_adv(local_tensors,
+                    tensor_db,
+                    tensor_name,
+                    fl_round,
+                    collaborators_chosen_each_round,
+                    collaborator_times_per_round):
+    """ advanced aggregation, the weight values are the defualt weights multiply those of customized aggregation function
+        this function is similar to eqn (6) in https://arxiv.org/pdf/2203.13993.pdf
+    """
+    if fl_round == 0:
+        # in the first round, just do normal fedavg
+        tensor_values = [t.tensor for t in local_tensors]
+        weight_values = [t.weight for t in local_tensors]               
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)   
+        
+        # besides, also save the aggregated model for the computing of model update direction in the later roudns [optional]
+        tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
+    else:
+        # get the defualt weights values (shall be like weighted by number of training samples)
+        weight_values_default = np.array([t.weight for t in local_tensors], dtype=np.float64)               
+
+        # compute the customized aggregation weights, i.e., scores associated to each local tensor
+        # these scores can be the output of get_dist_score, or get_val_loss, or get_hybrid_score
+        _, val_loss_scores = get_val_loss_score(local_tensors,tensor_db,fl_round)
+
+        # compute the final scores
+        final_scores = weight_values_default * val_loss_scores
+
+        # normalize the score into [0 ,1]
+        weight_values = final_scores/final_scores.sum()
+        
+        # compute the aggregated model
+        tensor_values = [t.tensor for t in local_tensors]
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)
+
+    return new_tensor_agg
+
+def wy_agg_func_val_adv2(local_tensors,
+                        tensor_db,
+                        tensor_name,
+                        fl_round,
+                        collaborators_chosen_each_round,
+                        collaborator_times_per_round):
+    """ advanced aggregation, which is a further weighted average of fedavg and customized aggregation function
+        this function share the simimiar spirit of eqn (2) in https://arxiv.org/abs/2111.08649 (the winner of FeTS2021)
+    """
+    if fl_round == 0:
+        # in the first round, just do normal fedavg
+        tensor_values = [t.tensor for t in local_tensors]
+        weight_values = [t.weight for t in local_tensors]               
+        new_tensor_agg =  np.average(tensor_values, weights=weight_values, axis=0)   
+        
+        # besides, also save the aggregated model for the computing of model update direction in the later roudns [optional]
+        tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
+    else:
+        # get the tensors to be aggregated
+        tensor_values = [t.tensor for t in local_tensors]
+        
+        # get the defualt weights values (shall be like weighted by number of training samples)
+        weight_values_default = np.array([t.weight for t in local_tensors], dtype=np.float64)               
+
+        # compute the customized aggregation weights, i.e., scores associated to each local tensor
+        # these scores can be the output of get_dist_score, or get_val_loss, or get_hybrid_score
+        _, val_loss_scores = get_val_loss_score(local_tensors,tensor_db,fl_round)
+
+        # compute the final scores
+        alpha = np.float64(0.5)
+        final_scores = alpha*weight_values_default + (1-alpha)*val_loss_scores
+
+        # normalize the score into [0 ,1]
+        weight_values = final_scores/final_scores.sum()
+
+        # then find the final output as the weighted average of the above two aggregated models       
+        new_tensor_agg=  np.average(tensor_values, weights=weight_values, axis=0)
+
+    return new_tensor_agg
+
+def wy_agg_func_val_delta_adv(local_tensors,
+                            tensor_db,
+                            tensor_name,
+                            fl_round,
+                            collaborators_chosen_each_round,
+                            collaborator_times_per_round):
+    """ advanced aggregation, the weight values are the defualt weights multiply those of customized aggregation function
+        this function is similar to eqn (6) in https://arxiv.org/pdf/2203.13993.pdf
+    """
+    if fl_round == 0:
+        # in the first round, just do normal fedavg
+        tensor_values = [t.tensor for t in local_tensors]
+        weight_values = [t.weight for t in local_tensors]               
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)   
+        
+        # besides, also save the aggregated model for the computing of model update direction in the later roudns [optional]
+        tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
+    else:
+        # get the defualt weights values (shall be like weighted by number of training samples)
+        weight_values_default = np.array([t.weight for t in local_tensors], dtype=np.float64)               
+
+        # compute the customized aggregation weights, i.e., scores associated to each local tensor
+        # these scores can be the output of get_dist_score, or get_val_loss, or get_hybrid_score
+        _, val_delta_scores = get_val_loss_delta_score(local_tensors,tensor_db,fl_round)
+
+        # compute the final scores
+        if val_delta_scores is not None:
+            final_scores = weight_values_default * val_delta_scores
+        else:
+            final_scores = weight_values_default
+
+        # normalize the score into [0 ,1]
+        weight_values = final_scores/final_scores.sum()
+        
+        # compute the aggregated model
+        tensor_values = [t.tensor for t in local_tensors]
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)
+
+    return new_tensor_agg
+
+def wy_agg_func_val_delta_adv2(local_tensors,
+                            tensor_db,
+                            tensor_name,
+                            fl_round,
+                            collaborators_chosen_each_round,
+                            collaborator_times_per_round):
+    """ advanced aggregation, which is a further weighted average of fedavg and customized aggregation function
+        this function share the simimiar spirit of eqn (2) in https://arxiv.org/abs/2111.08649 (the winner of FeTS2021)
+    """
+    if fl_round == 0:
+        # in the first round, just do normal fedavg
+        tensor_values = [t.tensor for t in local_tensors]
+        weight_values = [t.weight for t in local_tensors]               
+        new_tensor_agg =  np.average(tensor_values, weights=weight_values, axis=0)   
+        
+        # besides, also save the aggregated model for the computing of model update direction in the later roudns [optional]
+        tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
+    else:
+        # get the tensors to be aggregated
+        tensor_values = [t.tensor for t in local_tensors]
+        
+        # get the defualt weights values (shall be like weighted by number of training samples)
+        weight_values_default = np.array([t.weight for t in local_tensors], dtype=np.float64)               
+
+        # compute the customized aggregation weights, i.e., scores associated to each local tensor
+        # these scores can be the output of get_dist_score, or get_val_loss, or get_hybrid_score
+        _, val_delta_scores = get_val_loss_delta_score(local_tensors,tensor_db,fl_round)
+
+        # compute the final scores
+        alpha = np.float64(0.5)
+        if val_delta_scores is not None:
+            final_scores = alpha*weight_values_default + (1-alpha)*val_delta_scores
+        else:
+            final_scores = weight_values_default
+        # normalize the score into [0 ,1]
+        weight_values = final_scores/final_scores.sum()
+
+        # then find the final output as the weighted average of the above two aggregated models       
+        new_tensor_agg=  np.average(tensor_values, weights=weight_values, axis=0)
+
+    return new_tensor_agg
+
+def wy_agg_func_hybrid_val_adv(local_tensors,
+                            tensor_db,
+                            tensor_name,
+                            fl_round,
+                            collaborators_chosen_each_round,
+                            collaborator_times_per_round):
+    """ advanced aggregation, the weight values are the defualt weights multiply those of customized aggregation function
+        this function is similar to eqn (6) in https://arxiv.org/pdf/2203.13993.pdf
+    """
+    if fl_round == 0:
+        # in the first round, just do normal fedavg
+        tensor_values = [t.tensor for t in local_tensors]
+        weight_values = [t.weight for t in local_tensors]               
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)   
+        
+        # besides, also save the aggregated model for the computing of model update direction in the later roudns [optional]
+        tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
+    else:
+        # get the defualt weights values (shall be like weighted by number of training samples)
+        weight_values_default = np.array([t.weight for t in local_tensors], dtype=np.float64)               
+
+        # compute the customized aggregation weights, i.e., scores associated to each local tensor
+        # these scores can be the output of get_dist_score, or get_val_loss, or get_hybrid_score
+        hybrid_val_scores = get_hybrid_score_val(local_tensors,tensor_db,fl_round)
+
+        # compute the final scores
+        final_scores = weight_values_default * hybrid_val_scores
+
+        # normalize the score into [0 ,1]
+        weight_values = final_scores/final_scores.sum()
+        
+        # compute the aggregated model
+        tensor_values = [t.tensor for t in local_tensors]
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)
+
+    return new_tensor_agg
+
+def wy_agg_func_hybrid_val_adv2(local_tensors,
+                            tensor_db,
+                            tensor_name,
+                            fl_round,
+                            collaborators_chosen_each_round,
+                            collaborator_times_per_round):
+    """ advanced aggregation, which is a further weighted average of fedavg and customized aggregation function
+        this function share the simimiar spirit of eqn (2) in https://arxiv.org/abs/2111.08649 (the winner of FeTS2021)
+    """
+    if fl_round == 0:
+        # in the first round, just do normal fedavg
+        tensor_values = [t.tensor for t in local_tensors]
+        weight_values = [t.weight for t in local_tensors]               
+        new_tensor_agg =  np.average(tensor_values, weights=weight_values, axis=0)   
+        
+        # besides, also save the aggregated model for the computing of model update direction in the later roudns [optional]
+        tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
+    else:
+        # get the tensors to be aggregated
+        tensor_values = [t.tensor for t in local_tensors]
+        
+        # get the defualt weights values (shall be like weighted by number of training samples)
+        weight_values_default = np.array([t.weight for t in local_tensors], dtype=np.float64)               
+
+        # compute the customized aggregation weights, i.e., scores associated to each local tensor
+        # these scores can be the output of get_dist_score, or get_val_loss, or get_hybrid_score
+        hybrid_val_scores = get_hybrid_score_val(local_tensors,tensor_db,fl_round)
+
+        # compute the final scores
+        alpha = np.float64(0.5)
+        final_scores = alpha*weight_values_default + (1-alpha)*hybrid_val_scores
+
+        # normalize the score into [0 ,1]
+        weight_values = final_scores/final_scores.sum()
+
+        # then find the final output as the weighted average of the above two aggregated models       
+        new_tensor_agg=  np.average(tensor_values, weights=weight_values, axis=0)
+
+    return new_tensor_agg
+
+def wy_agg_func_hybrid_val_delta_adv(local_tensors,
+                                    tensor_db,
+                                    tensor_name,
+                                    fl_round,
+                                    collaborators_chosen_each_round,
+                                    collaborator_times_per_round):
+    """ advanced aggregation, the weight values are the defualt weights multiply those of customized aggregation function
+        this function is similar to eqn (6) in https://arxiv.org/pdf/2203.13993.pdf
+    """
+    if fl_round == 0:
+        # in the first round, just do normal fedavg
+        tensor_values = [t.tensor for t in local_tensors]
+        weight_values = [t.weight for t in local_tensors]               
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)   
+        
+        # besides, also save the aggregated model for the computing of model update direction in the later roudns [optional]
+        tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
+    else:
+        # get the defualt weights values (shall be like weighted by number of training samples)
+        weight_values_default = np.array([t.weight for t in local_tensors], dtype=np.float64)               
+
+        # compute the customized aggregation weights, i.e., scores associated to each local tensor
+        # these scores can be the output of get_dist_score, or get_val_loss, or get_hybrid_score
+        hybrid_val_delta_scores = get_hybrid_score_val_delta(local_tensors,tensor_db,tensor_name,fl_round)
+
+        # compute the final scores
+        final_scores = weight_values_default * hybrid_val_delta_scores
+
+        # normalize the score into [0 ,1]
+        weight_values = final_scores/final_scores.sum()
+        
+        # compute the aggregated model
+        tensor_values = [t.tensor for t in local_tensors]
+        new_tensor_agg = np.average(tensor_values, weights=weight_values, axis=0)
+
+    return new_tensor_agg
+
+def wy_agg_func_hybrid_val_delta_adv2(local_tensors,
+                                        tensor_db,
+                                        tensor_name,
+                                        fl_round,
+                                        collaborators_chosen_each_round,
+                                        collaborator_times_per_round):
+    """ advanced aggregation, which is a further weighted average of fedavg and customized aggregation function
+        this function share the simimiar spirit of eqn (2) in https://arxiv.org/abs/2111.08649 (the winner of FeTS2021)
+    """
+    if fl_round == 0:
+        # in the first round, just do normal fedavg
+        tensor_values = [t.tensor for t in local_tensors]
+        weight_values = [t.weight for t in local_tensors]               
+        new_tensor_agg =  np.average(tensor_values, weights=weight_values, axis=0)   
+        
+        # besides, also save the aggregated model for the computing of model update direction in the later roudns [optional]
+        tensor_db.store(tensor_name=tensor_name, tags=('tensor_agg_round_0',), nparray=new_tensor_agg)
+    else:
+        # get the tensors to be aggregated
+        tensor_values = [t.tensor for t in local_tensors]
+        
+        # get the defualt weights values (shall be like weighted by number of training samples)
+        weight_values_default = np.array([t.weight for t in local_tensors], dtype=np.float64)               
+
+        # compute the customized aggregation weights, i.e., scores associated to each local tensor
+        # these scores can be the output of get_dist_score, or get_val_loss, or get_hybrid_score
+        hybrid_val_delta_scores = get_hybrid_score_val_delta(local_tensors,tensor_db,fl_round)
+
+        # compute the final scores
+        alpha = np.float64(0.5)
+        final_scores = alpha*weight_values_default + (1-alpha)*hybrid_val_delta_scores
+
+        # normalize the score into [0 ,1]
+        weight_values = final_scores/final_scores.sum()
+
+        # then find the final output as the weighted average of the above two aggregated models       
+        new_tensor_agg=  np.average(tensor_values, weights=weight_values, axis=0)
+
+    return new_tensor_agg
+
+#############################################################
+##         BASELINE METHODS
+##############################################################
 
 # the simple example of weighted FedAVG
 def weighted_average_aggregation(local_tensors,
@@ -755,6 +1253,19 @@ def fedNova_simplified(local_tensors,
         
         return new_tensor_weight
 
+# define centralized-alike approach
+def central_train_sim(local_tensors,
+                    tensor_db,
+                    tensor_name,
+                    fl_round,
+                    collaborators_chosen_each_round,
+                    collaborator_times_per_round):
+    """ in this case, partition_0.csv is to be used, only one collaborator 'col 1' who has all the training data
+        to simulate a centralized training
+    """
+    tensor_values = local_tensors[0].tensor # the only one 
+    return np.average(tensor_values, axis=0)
+
 # # Running the Experiment
 # 
 # ```run_challenge_experiment``` is singular interface where your custom methods can be passed.
@@ -775,21 +1286,39 @@ def fedNova_simplified(local_tensors,
 # change any of these you wish to your custom functions. You may leave defaults if you wish.
 # aggregation_function = weighted_average_aggregation
 # aggregation_function = FedAvgM_Selection
-aggregation_function = fedNova_simplified
+# aggregation_function = fedNova_simplified
+# aggregation_function = central_train_sim
 
-# aggregation_function = wy_agg_func_dist2
-# aggregation_function = wy_agg_func_dist
-# aggregation_function = wy_agg_func_val
-# aggregation_function = wy_agg_func_hybrid
-# aggregation_function = wy_agg_func_adv
-# aggregation_function = wy_agg_func_adv2
+# # choose from the following list for customized aggregation function
+# # dist-based methods
+# aggregation_function = wy_agg_func_dist # plain
+# aggregation_function = wy_agg_func_dist_adv # adv
+# aggregation_function = wy_agg_func_dist_adv2 # adv2
 
+# # val loss based methods
+# aggregation_function = wy_agg_func_val # plain
+# aggregation_function = wy_agg_func_val_adv # adv
+# aggregation_function = wy_agg_func_val_adv2 # adv2
+
+# # delta val loss based methods
+# aggregation_function = wy_agg_func_val_delta # plain
+# aggregation_function = wy_agg_func_val_delta_adv # adv
+# aggregation_function = wy_agg_func_val_delta_adv2 # adv2
+
+# # val & dist hybrid methods
+# aggregation_function = wy_agg_func_hybrid_val # basic
+# aggregation_function = wy_agg_func_hybrid_val_adv # adv
+# aggregation_function = wy_agg_func_hybrid_val_adv2 # adv2
+
+# val & dist hybrid methods
+# aggregation_function = wy_agg_func_hybrid_val_delta # basic 
+aggregation_function = wy_agg_func_hybrid_val_delta_adv # adv
+# aggregation_function = wy_agg_func_hybrid_val_delta_adv2 # adv2
+
+# training col selection strategy
 choose_training_collaborators = all_collaborators_train
-# choose_training_collaborators = wy_select_col_with_more_data_1
-# choose_training_collaborators = wy_select_col_with_more_data_2
-# choose_training_collaborators = wy_select_col_with_more_data_subset_1
-# choose_training_collaborators = wy_select_col_with_more_data_subset_2
 
+# hyper param.
 training_hyper_parameters_for_round = constant_hyper_parameters
 
 # As mentioned in the 'Custom Aggregation Functions' section (above), six 
@@ -797,19 +1326,23 @@ training_hyper_parameters_for_round = constant_hyper_parameters
 # to those you specify immediately above. Changing the below value to False will change 
 # this fact, excluding the three hausdorff measurements. As hausdorff distance is 
 # expensive to compute, excluding them will speed up your experiments.
-include_validation_with_hausdorff=True
+include_validation_with_hausdorff=False
 
 # We encourage participants to experiment with partitioning_1 and partitioning_2, as well as to create
 # other partitionings to test your changes for generalization to multiple partitionings.
-#institution_split_csv_filename = 'partitioning_1.csv'
 institution_split_csv_filename = 'small_split.csv'
+# institution_split_csv_filename = 'partitioning_1.csv'
+# institution_split_csv_filename = 'partitioning_2.csv'
+# institution_split_csv_filename = 'partitioning_2_top5_clients.csv'
+# institution_split_csv_filename = 'partitioning_2_rand_pick_5.csv'
+
 
 # change this to point to the parent directory of the data
-brats_training_data_parent_dir = '/mnt/data/home/wangyuan/Challenge/Data/TrainingData'
+brats_training_data_parent_dir = '/home/wang_yuan/fets2022/Data/TrainingData'
 
 # increase this if you need a longer history for your algorithms
 # decrease this if you need to reduce system RAM consumption
-db_store_rounds = 10
+db_store_rounds = 1
 
 # this is passed to PyTorch, so set it accordingly for your system
 device = 'cuda'
@@ -848,6 +1381,13 @@ scores_dataframe, checkpoint_folder = run_challenge_experiment(
 
 
 scores_dataframe
+print(scores_dataframe)
+
+from pathlib import Path
+# infer participant home folder
+home = str(Path.home())
+scores_dataframe_file = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'scores_df.csv')
+scores_dataframe.to_csv(scores_dataframe_file)
 
 
 # ## Produce NIfTI files for best model outputs on the validation set
@@ -859,42 +1399,45 @@ scores_dataframe
 # experiment (look for the log entry: "Created experiment folder experiment_##..." above).
 
 
-from fets_challenge import model_outputs_to_disc
-from pathlib import Path
+# from fets_challenge import model_outputs_to_disc
+# from pathlib import Path
 
-# infer participant home folder
-home = str(Path.home())
+# # infer participant home folder
+# home = str(Path.home())
 
-# you will need to specify the correct experiment folder and the parent directory for
-# the data you want to run inference over (assumed to be the experiment that just completed)
+# # you will need to specify the correct experiment folder and the parent directory for
+# # the data you want to run inference over (assumed to be the experiment that just completed)
 
-#checkpoint_folder='experiment_1'
-#data_path = </PATH/TO/CHALLENGE_VALIDATION_DATA>
-data_path = '/mnt/data/home/wangyuan/Challenge/Data/ValidationData'
-validation_csv_filename = 'validation.csv'
+# #checkpoint_folder='experiment_1'
+# #data_path = </PATH/TO/CHALLENGE_VALIDATION_DATA>
+# data_path = '/home/wang_yuan/fets2022/Data/ValidationData'
+# validation_csv_filename = 'validation.csv'
 
-# you can keep these the same if you wish
-final_model_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'best_model.pkl')
+# # you can keep these the same if you wish
+# final_model_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'best_model.pkl')
 
-# If the experiment is only run for a single round, use the temp model instead
-if not Path(final_model_path).exists():
-   final_model_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'temp_model.pkl')
+# # If the experiment is only run for a single round, use the temp model instead
+# if not Path(final_model_path).exists():
+#    final_model_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'temp_model.pkl')
 
-outputs_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'model_outputs')
+# outputs_path = os.path.join(home, '.local/workspace/checkpoint', checkpoint_folder, 'model_outputs')
 
 
-# Using this best model, we can now produce NIfTI files for model outputs 
-# using a provided data directory
+# # Using this best model, we can now produce NIfTI files for model outputs 
+# # using a provided data directory
 
-model_outputs_to_disc(data_path=data_path, 
-                      validation_csv=validation_csv_filename,
-                      output_path=outputs_path, 
-                      native_model_path=final_model_path,
-                      outputtag='',
-                      device=device)
+# model_outputs_to_disc(data_path=data_path, 
+#                       validation_csv=validation_csv_filename,
+#                       output_path=outputs_path, 
+#                       native_model_path=final_model_path,
+#                       outputtag='',
+#                       device=device)
 
 time_end = time.time()
 
 # show the time elapsed for this session
 sesseion_time = np.around((time_end-time_start)/3600, 2)
 print('Session time: {} hrs. That\'s all folks.'.format(sesseion_time))
+
+time_end_stamp = time.strftime('%y-%m-%d-%H-%M-%S')
+print(f'Session completed at {time_end_stamp}')
