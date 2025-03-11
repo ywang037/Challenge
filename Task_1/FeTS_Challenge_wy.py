@@ -880,11 +880,11 @@ include_validation_with_hausdorff=False
 
 # We encourage participants to experiment with partitioning_1 and partitioning_2, as well as to create
 # other partitionings to test your changes for generalization to multiple partitionings.
-#institution_split_csv_filename = 'partitioning_1.csv'
+# institution_split_csv_filename = 'partitioning_1.csv'
 institution_split_csv_filename = 'small_split.csv'
 
 # change this to point to the parent directory of the data
-brats_training_data_parent_dir = '/home/wang_yuan/fets2022/Data/TrainingData'
+brats_training_data_parent_dir = '/mnt/data/home/wangyuan/Challenge/Data/Data/TrainingData'
 
 # increase this if you need a longer history for your algorithms
 # decrease this if you need to reduce system RAM consumption
@@ -949,7 +949,7 @@ home = str(Path.home())
 
 #checkpoint_folder='experiment_1'
 #data_path = </PATH/TO/CHALLENGE_VALIDATION_DATA>
-data_path = '/home/wang_yuan/fets2022/Data/ValidationData'
+data_path = '/mnt/data/home/wangyuan/Challenge/Data/ValidationData'
 validation_csv_filename = 'validation.csv'
 
 # you can keep these the same if you wish
